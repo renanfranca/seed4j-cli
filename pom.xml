@@ -110,7 +110,7 @@
     <picocli.version>4.7.7</picocli.version>
     <spring-boot.version>3.4.4</spring-boot.version>
     <cucumber.version>7.21.1</cucumber.version>
-    <jhlite.version>1.31.1-SNAPSHOT</jhlite.version>
+    <jhlite.version>1.31.0</jhlite.version>
     <approvaltests.version>24.21.0</approvaltests.version>
   </properties>
 
