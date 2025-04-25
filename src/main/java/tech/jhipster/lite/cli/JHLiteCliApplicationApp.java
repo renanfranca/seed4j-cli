@@ -5,9 +5,10 @@ import org.slf4j.LoggerFactory;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.core.env.Environment;
+import tech.jhipster.lite.JHLiteApp;
 import tech.jhipster.lite.cli.shared.generation.domain.ExcludeFromGeneratedCodeCoverage;
 
-@SpringBootApplication
+@SpringBootApplication(scanBasePackageClasses = { JHLiteApp.class, JHLiteCliApplicationApp.class })
 @ExcludeFromGeneratedCodeCoverage(reason = "Not testing logs")
 public class JHLiteCliApplicationApp {
 

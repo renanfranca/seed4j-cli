@@ -7,3 +7,11 @@ logging:
 spring:
   application:
     name: JHLiteCliApplication
+  jackson:
+    default-property-inclusion: non_null
+jhlite:
+  hidden-resources:
+    # Disable the modules and its dependencies by slugs
+    slugs: custom-jhlite
+server:
+  port: 8080

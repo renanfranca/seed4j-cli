@@ -156,6 +156,19 @@
         "springConfigurationFormat": "yaml",
         "serverPort": 8080
       }
+    },
+    {
+      "module": "custom-jhlite",
+      "date": "2025-04-25T12:45:06.643165139Z",
+      "properties": {
+        "packageName": "tech.jhipster.lite.cli",
+        "projectName": "JHLite Cli",
+        "baseName": "JHLiteCliApplication",
+        "endOfLine": "lf",
+        "indentSize": 2,
+        "springConfigurationFormat": "yaml",
+        "serverPort": 8080
+      }
     }
   ]
 }

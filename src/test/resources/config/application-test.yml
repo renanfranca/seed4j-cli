@@ -3,3 +3,6 @@ logging:
 spring:
   main:
     banner-mode: 'off'
+    allow-bean-definition-overriding: true
+server:
+  port: 0
