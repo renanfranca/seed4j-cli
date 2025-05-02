@@ -7,7 +7,7 @@ import picocli.CommandLine.Command;
 @Command(
   name = "jhlite",
   mixinStandardHelpOptions = true,
-  subcommands = ListCommand.class,
+  subcommands = { ListCommand.class, ApplyCommand.class },
   description = "JHLite CLI Application",
   headerHeading = "%n",
   commandListHeading = "%nCommands:%n"
