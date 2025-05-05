@@ -101,6 +101,13 @@ class JHLiteCommandTest {
     assertThat(GitTestUtil.getCommits(projectPath)).isEmpty();
   }
 
+  //TODO - use ProjectHistory to check if --package-name was applied correctly
+  /**
+   *
+   * ProjectHistory history = projects.getHistory(new ProjectPath("."));
+   *     return history.latestProperties().
+   */
+
   private static Path setupProjectTestFolder(String projectFolder) throws IOException {
     Path projectPath = Path.of(projectFolder);
     Files.createDirectories(projectPath);
