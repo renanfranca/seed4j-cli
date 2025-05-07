@@ -3,11 +3,11 @@ package tech.jhipster.lite.cli.command.infrastructure.primary;
 import java.util.concurrent.Callable;
 import java.util.stream.Collectors;
 import org.springframework.stereotype.Component;
-import picocli.CommandLine;
+import picocli.CommandLine.Command;
 import tech.jhipster.lite.module.application.JHipsterModulesApplicationService;
 
 @Component
-@CommandLine.Command(name = "list", description = "List all jhipster-lite modules")
+@Command(name = "list", description = "List all jhipster-lite modules")
 class ListModulesCommand implements Callable<Integer> {
 
   private final JHipsterModulesApplicationService modules;
