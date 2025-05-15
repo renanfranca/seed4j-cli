@@ -29,6 +29,7 @@ class JHLiteCommandTest {
   private static final String BASE_NAME = "baseName";
   private static final String END_OF_LINE = "endOfLine";
   private static final String INDENT_SIZE = "indentSize";
+  private static final String PACKAGE_NAME = "packageName";
 
   @Autowired
   private ProjectsApplicationService projects;
@@ -160,8 +161,10 @@ class JHLiteCommandTest {
       assertThat(GitTestUtil.getCommits(projectPath)).isEmpty();
       assertThat(output.toString())
         .contains("Missing required")
-        .contains("'--base-name=<basename>'")
-        .contains("'--project-name=<projectname>'");
+        .contains("'--base-name=<basename*>'")
+        .contains("'--project-name=<projectname*>'")
+        .contains("Project short name (only letters and numbers) (required)")
+        .contains("Project full name (required)");
     }
 
     @Test
@@ -294,6 +297,38 @@ class JHLiteCommandTest {
       assertThat(projectPropertyValue(projectPath, END_OF_LINE)).isEqualTo("lf");
     }
 
+    @Test
+    void shouldReuseParametersFromPreviousModuleApplications() throws IOException {
+      Path projectPath = setupProjectTestFolder();
+      String[] initModuleArgs = {
+        "apply",
+        "init",
+        "--project-path",
+        projectPath.toString(),
+        "--base-name",
+        "jhipsterSampleApplication",
+        "--project-name",
+        "JHipster Sample Application",
+      };
+      int initModuleExitCode = commandLine().execute(initModuleArgs);
+      assertThat(initModuleExitCode).isZero();
+      String[] mavenJavaModuleArgs = {
+        "apply",
+        "maven-java",
+        "--project-path",
+        projectPath.toString(),
+        "--package-name",
+        "com.my.company",
+      };
+
+      int mavenJavaModuleExitCode = commandLine().execute(mavenJavaModuleArgs);
+
+      assertThat(mavenJavaModuleExitCode).isZero();
+      assertThat(projectPropertyValue(projectPath, PROJECT_NAME)).isEqualTo("JHipster Sample Application");
+      assertThat(projectPropertyValue(projectPath, BASE_NAME)).isEqualTo("jhipsterSampleApplication");
+      assertThat(projectPropertyValue(projectPath, PACKAGE_NAME)).isEqualTo("com.my.company");
+    }
+
     private static Path setupProjectTestFolder() throws IOException {
       String projectFolder = newTestFolder();
       Path projectPath = Path.of(projectFolder);
@@ -313,7 +348,8 @@ class JHLiteCommandTest {
 
   private CommandLine commandLine() {
     ListModulesCommand listModulesCommand = new ListModulesCommand(modules);
-    ApplyModuleCommand applyModuleCommand = new ApplyModuleCommand(modules);
+    ModuleSlugCommandFactory moduleSlugCommandFactory = new ModuleSlugCommandFactory(modules, projects);
+    ApplyModuleCommand applyModuleCommand = new ApplyModuleCommand(modules, moduleSlugCommandFactory);
 
     JHLiteCommand jhliteCommand = new JHLiteCommand(listModulesCommand, applyModuleCommand);
 

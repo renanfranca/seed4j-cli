@@ -10,9 +10,11 @@ import tech.jhipster.lite.module.domain.resource.JHipsterModuleResource;
 class ApplyModuleCommand {
 
   private final JHipsterModulesApplicationService modules;
+  private final ModuleSlugCommandFactory moduleSlugCommandFactory;
 
-  public ApplyModuleCommand(JHipsterModulesApplicationService modules) {
+  public ApplyModuleCommand(JHipsterModulesApplicationService modules, ModuleSlugCommandFactory moduleSlugCommandFactory) {
     this.modules = modules;
+    this.moduleSlugCommandFactory = moduleSlugCommandFactory;
   }
 
   public CommandSpec buildCommandSpec() {
@@ -34,7 +36,7 @@ class ApplyModuleCommand {
       .resources()
       .stream()
       .sorted(byModuleSlug())
-      .forEach(module -> spec.addSubcommand(module.slug().get(), new ModuleSlugCommand(modules, module).commandSpec()));
+      .forEach(module -> spec.addSubcommand(module.slug().get(), moduleSlugCommandFactory.create(module).commandSpec()));
   }
 
   private static Comparator<JHipsterModuleResource> byModuleSlug() {
