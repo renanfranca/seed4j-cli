@@ -74,6 +74,7 @@
     <surefire-plugin.version>3.5.5</surefire-plugin.version>
     <failsafe-plugin.version>3.5.5</failsafe-plugin.version>
     <maven-checkstyle-plugin.version>3.6.0</maven-checkstyle-plugin.version>
+    <maven-dependency-plugin.version>3.10.0</maven-dependency-plugin.version>
     <checkstyle.version>13.3.0</checkstyle.version>
     <jacoco.version>0.8.14</jacoco.version>
     <properties-maven-plugin.version>1.3.0</properties-maven-plugin.version>
@@ -138,6 +139,18 @@
               </requireJavaVersion>
             </rules>
           </configuration>
+        </plugin>
+        <plugin>
+          <artifactId>maven-dependency-plugin</artifactId>
+          <version>${maven-dependency-plugin.version}</version>
+          <executions>
+            <execution>
+              <id>generate-dependencies-properties</id>
+              <goals>
+                <goal>properties</goal>
+              </goals>
+            </execution>
+          </executions>
         </plugin>
         <plugin>
           <groupId>org.jacoco</groupId>
@@ -281,6 +294,7 @@
         <artifactId>maven-surefire-plugin</artifactId>
         <version>${surefire-plugin.version}</version>
         <configuration>
+          <argLine>@{argLine} -javaagent:${org.mockito:mockito-core:jar}</argLine>
           <runOrder>alphabetical</runOrder>
           <excludes>
             <exclude>**/*IT*</exclude>
@@ -306,6 +320,7 @@
           </execution>
         </executions>
         <configuration>
+          <argLine>@{argLine} -javaagent:${org.mockito:mockito-core:jar}</argLine>
           <classesDirectory>${project.build.outputDirectory}</classesDirectory>
           <runOrder>alphabetical</runOrder>
           <includes>
@@ -356,6 +371,9 @@
       <plugin>
         <groupId>org.codehaus.mojo</groupId>
         <artifactId>properties-maven-plugin</artifactId>
+      </plugin>
+      <plugin>
+        <artifactId>maven-dependency-plugin</artifactId>
       </plugin>
       <plugin>
         <groupId>org.springframework.boot</groupId>
