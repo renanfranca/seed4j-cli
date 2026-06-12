@@ -7,7 +7,9 @@ import com.seed4j.cli.shared.generation.domain.ExcludeFromGeneratedCodeCoverage;
 import com.seed4j.module.application.Seed4JModulesApplicationService;
 import com.seed4j.module.domain.Seed4JModuleSlug;
 import com.seed4j.module.domain.Seed4JModuleToApply;
+import com.seed4j.module.domain.nodejs.NodePackageManager;
 import com.seed4j.module.domain.properties.Seed4JModuleProperties;
+import com.seed4j.module.domain.properties.Seed4JPropertyDefaultValue;
 import com.seed4j.module.domain.properties.Seed4JPropertyDescription;
 import com.seed4j.module.domain.properties.Seed4JPropertyKey;
 import com.seed4j.module.domain.properties.Seed4JPropertyType;
@@ -19,10 +21,12 @@ import com.seed4j.project.application.ProjectsApplicationService;
 import com.seed4j.project.domain.ProjectPath;
 import com.seed4j.project.domain.history.ModuleParameters;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.Callable;
 import java.util.stream.Collectors;
 import picocli.CommandLine.ExitCode;
@@ -39,6 +43,7 @@ class ApplyModuleSubCommand implements Callable<Integer> {
   private static final String PLAN_OPTION = "--plan";
   private static final String FORMAT_OPTION = "--format";
   private static final String INIT_MODULE = "init";
+  private static final String NODE_PACKAGE_MANAGER_PARAMETER = "nodePackageManager";
 
   private final Seed4JModulesApplicationService modules;
   private final Seed4JModuleResource module;
@@ -219,9 +224,10 @@ class ApplyModuleSubCommand implements Callable<Integer> {
     Map<String, Object> historyParameters = projects.getHistory(new ProjectPath(projectPath())).latestProperties().get();
     Map<String, PlanParameter> planParameters = planParameters(explicitParameters, historyParameters);
     List<MissingPlanParameter> missingParameters = missingParameters(planParameters);
+    List<InvalidPlanParameter> invalidParameters = invalidParameters(planParameters);
     Map<String, PlanExecutionDecision> executionDecisions = executionDecisions();
     List<UnresolvedExecutionDecision> unresolvedExecutionDecisions = unresolvedExecutionDecisions(executionDecisions);
-    boolean executable = missingParameters.isEmpty() && unresolvedExecutionDecisions.isEmpty();
+    boolean executable = missingParameters.isEmpty() && invalidParameters.isEmpty() && unresolvedExecutionDecisions.isEmpty();
 
     return new ApplyModulePlan(
       executable ? ApplyPlanStatus.RESOLVED : ApplyPlanStatus.NEEDS_USER_INPUT,
@@ -230,8 +236,9 @@ class ApplyModuleSubCommand implements Callable<Integer> {
       planParameters,
       executionDecisions,
       missingParameters,
+      invalidParameters,
       unresolvedExecutionDecisions,
-      nextAction(executable)
+      nextAction(executable, invalidParameters)
     );
   }
 
@@ -239,7 +246,10 @@ class ApplyModuleSubCommand implements Callable<Integer> {
     Map<String, PlanParameter> planParameters = new LinkedHashMap<>();
     OptionSpec projectPathOption = commandSpec.findOption(PROJECT_PATH_OPTION);
     PlanValueSource projectPathSource = explicitlyProvided(projectPathOption) ? PlanValueSource.EXPLICIT : PlanValueSource.DEFAULT;
-    planParameters.put("projectPath", new PlanParameter("project-path", projectPath(), projectPathSource, true));
+    planParameters.put(
+      "projectPath",
+      new PlanParameter("project-path", projectPath(), projectPathSource, true, true, List.of(), null, ".")
+    );
 
     module
       .propertiesDefinition()
@@ -248,12 +258,27 @@ class ApplyModuleSubCommand implements Callable<Integer> {
         String propertyName = property.key().get();
         String dashedPropertyName = dashedName(toDashedFormat(property.key()));
         PlanValueSource source = parameterSource(propertyName, explicitParameters, historyParameters);
+        Object defaultValue = defaultValue(property);
         Object value = switch (source) {
           case EXPLICIT -> explicitParameters.get(propertyName);
           case PROJECT_HISTORY -> historyParameters.get(propertyName);
-          case DEFAULT, MISSING -> null;
+          case DEFAULT -> defaultValue;
+          case MISSING -> null;
         };
-        planParameters.put(propertyName, new PlanParameter(dashedPropertyName, value, source, !property.isMandatory()));
+        List<String> allowedValues = allowedValues(propertyName);
+        planParameters.put(
+          propertyName,
+          new PlanParameter(
+            dashedPropertyName,
+            value,
+            source,
+            !property.isMandatory(),
+            validParameter(source, value, allowedValues),
+            allowedValues,
+            property.isMandatory() ? defaultValue : null,
+            property.isMandatory() ? null : defaultValue
+          )
+        );
       });
 
     return planParameters;
@@ -272,7 +297,57 @@ class ApplyModuleSubCommand implements Callable<Integer> {
       return PlanValueSource.PROJECT_HISTORY;
     }
 
+    if (optionalPropertyWithDefault(propertyName).isPresent()) {
+      return PlanValueSource.DEFAULT;
+    }
+
     return PlanValueSource.MISSING;
+  }
+
+  private Optional<Seed4JModulePropertyDefinition> optionalPropertyWithDefault(String propertyName) {
+    return module
+      .propertiesDefinition()
+      .stream()
+      .filter(property -> property.key().get().equals(propertyName))
+      .filter(property -> !property.isMandatory())
+      .filter(property -> property.defaultValue().isPresent())
+      .findFirst();
+  }
+
+  private Object defaultValue(Seed4JModulePropertyDefinition property) {
+    return property
+      .defaultValue()
+      .map(Seed4JPropertyDefaultValue::get)
+      .map(defaultValue -> typedValue(defaultValue, property.type()))
+      .orElse(null);
+  }
+
+  private Object typedValue(String value, Seed4JPropertyType type) {
+    return switch (type) {
+      case BOOLEAN -> Boolean.valueOf(value);
+      case INTEGER -> Integer.valueOf(value);
+      case STRING -> value;
+    };
+  }
+
+  private List<String> allowedValues(String propertyName) {
+    if (NODE_PACKAGE_MANAGER_PARAMETER.equals(propertyName)) {
+      return Arrays.stream(NodePackageManager.values()).map(NodePackageManager::propertyKey).toList();
+    }
+
+    return List.of();
+  }
+
+  private Boolean validParameter(PlanValueSource source, Object value, List<String> allowedValues) {
+    if (source == PlanValueSource.MISSING) {
+      return false;
+    }
+
+    if (allowedValues.isEmpty()) {
+      return true;
+    }
+
+    return allowedValues.contains(String.valueOf(value));
   }
 
   private List<MissingPlanParameter> missingParameters(Map<String, PlanParameter> planParameters) {
@@ -283,6 +358,16 @@ class ApplyModuleSubCommand implements Callable<Integer> {
       .map(property -> planParameters.get(property.key().get()))
       .filter(parameter -> parameter.source() == PlanValueSource.MISSING)
       .map(parameter -> new MissingPlanParameter(parameter.name(), false))
+      .toList();
+  }
+
+  private List<InvalidPlanParameter> invalidParameters(Map<String, PlanParameter> planParameters) {
+    return planParameters
+      .values()
+      .stream()
+      .filter(parameter -> Boolean.FALSE.equals(parameter.valid()))
+      .filter(parameter -> parameter.source() != PlanValueSource.MISSING)
+      .map(parameter -> new InvalidPlanParameter(parameter.name(), parameter.value(), parameter.allowedValues(), false))
       .toList();
   }
 
@@ -306,9 +391,15 @@ class ApplyModuleSubCommand implements Callable<Integer> {
     return unresolvedExecutionDecisions;
   }
 
-  private String nextAction(boolean executable) {
+  private String nextAction(boolean executable, List<InvalidPlanParameter> invalidParameters) {
     if (executable) {
       return "The plan is executable. Run apply without --plan when the user confirms.";
+    }
+
+    if (!invalidParameters.isEmpty()) {
+      String parameterNames = invalidParameters.stream().map(InvalidPlanParameter::name).collect(Collectors.joining(", "));
+
+      return "Ask the user for valid values for %s and do not generate an executable command.".formatted(parameterNames);
     }
 
     return "Ask the user for values marked safeToInfer=false and do not generate an executable command.";
@@ -331,6 +422,7 @@ class ApplyModuleSubCommand implements Callable<Integer> {
       .merge(new ModuleParameters(parametersFromOptions()));
 
     validateRequiredOptions(moduleParameters);
+    validateParameterValues(moduleParameters);
 
     return moduleParameters.get();
   }
@@ -378,7 +470,24 @@ class ApplyModuleSubCommand implements Callable<Integer> {
       throw new MissingParameterException(
         commandSpec.commandLine(),
         missingOptions.stream().map(ArgSpec.class::cast).toList(),
-        "Missing required options: %s".formatted(missingOptionsDescription)
+        "Missing required options: %s%nRun seed4j apply init --plan --format json before executing init.".formatted(
+          missingOptionsDescription
+        )
+      );
+    }
+  }
+
+  private void validateParameterValues(ModuleParameters moduleParameters) {
+    Object nodePackageManager = moduleParameters.get().get(NODE_PACKAGE_MANAGER_PARAMETER);
+    List<String> allowedPackageManagers = allowedValues(NODE_PACKAGE_MANAGER_PARAMETER);
+
+    if (nodePackageManager != null && !allowedPackageManagers.contains(String.valueOf(nodePackageManager))) {
+      throw new ParameterException(
+        commandSpec.commandLine(),
+        "Invalid value for --node-package-manager: %s%nAllowed values: %s%nRun seed4j apply init --plan --format json before executing init.".formatted(
+          nodePackageManager,
+          String.join(", ", allowedPackageManagers)
+        )
       );
     }
   }

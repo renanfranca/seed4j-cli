@@ -16,6 +16,8 @@ import com.seed4j.project.domain.history.ProjectHistory;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -168,11 +170,10 @@ class Seed4JCommandsFactoryTest {
         .contains(
           """
           Apply seed4j specific module
-            -h, --help      Show this help message and exit.
-            -V, --version   Print version information and exit.
-          Commands:
           """
         )
+        .contains("Automation note: agents should run seed4j apply init --plan --format json")
+        .contains("before executing init.")
         .contains("init")
         .contains("Init project")
         .contains("prettier")
@@ -255,7 +256,8 @@ class Seed4JCommandsFactoryTest {
         .contains("'--base-name=<basename*>'")
         .contains("'--project-name=<projectname*>'")
         .contains("Project short name (only letters and numbers) (required)")
-        .contains("Project full name (required)");
+        .contains("Project full name (required)")
+        .contains("Run seed4j apply init --plan --format json before executing init");
     }
 
     @Test
@@ -276,15 +278,31 @@ class Seed4JCommandsFactoryTest {
       assertThat(plan.get("parameters").get("projectPath").get("source").asText()).isEqualTo("EXPLICIT");
       assertThat(plan.get("parameters").get("projectName").get("source").asText()).isEqualTo("MISSING");
       assertThat(plan.get("parameters").get("projectName").get("safeToInfer").asBoolean()).isFalse();
+      assertThat(plan.get("parameters").get("projectName").get("exampleValue").asText()).isEqualTo("Seed4J Sample Application");
+      assertThat(plan.get("parameters").get("projectName").get("defaultValue").isNull()).isTrue();
       assertThat(plan.get("parameters").get("baseName").get("source").asText()).isEqualTo("MISSING");
       assertThat(plan.get("parameters").get("baseName").get("safeToInfer").asBoolean()).isFalse();
+      assertThat(plan.get("parameters").get("baseName").get("exampleValue").asText()).isEqualTo("seed4jSampleApplication");
+      assertThat(plan.get("parameters").get("baseName").get("defaultValue").isNull()).isTrue();
       assertThat(plan.get("parameters").get("nodePackageManager").get("source").asText()).isEqualTo("MISSING");
       assertThat(plan.get("parameters").get("nodePackageManager").get("safeToInfer").asBoolean()).isFalse();
+      assertThat(plan.get("parameters").get("nodePackageManager").get("exampleValue").asText()).isEqualTo("npm");
+      assertThat(plan.get("parameters").get("nodePackageManager").get("defaultValue").isNull()).isTrue();
+      assertThat(textValues(plan.get("parameters").get("nodePackageManager").get("allowedValues"))).containsExactly("npm", "pnpm");
+      assertThat(plan.get("parameters").get("endOfLine").get("source").asText()).isEqualTo("DEFAULT");
+      assertThat(plan.get("parameters").get("endOfLine").get("value").asText()).isEqualTo("lf");
+      assertThat(plan.get("parameters").get("endOfLine").get("defaultValue").asText()).isEqualTo("lf");
+      assertThat(plan.get("parameters").get("endOfLine").get("safeToInfer").asBoolean()).isTrue();
+      assertThat(plan.get("parameters").get("indentSize").get("source").asText()).isEqualTo("DEFAULT");
+      assertThat(plan.get("parameters").get("indentSize").get("value").asInt()).isEqualTo(2);
+      assertThat(plan.get("parameters").get("indentSize").get("defaultValue").asInt()).isEqualTo(2);
+      assertThat(plan.get("parameters").get("indentSize").get("safeToInfer").asBoolean()).isTrue();
       assertThat(plan.get("missingParameters").findValuesAsText("name")).containsExactlyInAnyOrder(
         "project-name",
         "base-name",
         "node-package-manager"
       );
+      assertThat(plan.get("invalidParameters")).isEmpty();
       assertThat(plan.get("unresolvedExecutionDecisions").findValuesAsText("name")).containsExactly("commit");
       assertThat(plan.get("unresolvedExecutionDecisions").get(0).get("safeToInfer").asBoolean()).isFalse();
       assertThat(plan.get("nextAction").asText()).contains("Ask the user").contains("do not generate an executable command");
@@ -303,6 +321,69 @@ class Seed4JCommandsFactoryTest {
       assertThat(plan.get("parameters").get("projectPath").get("value").asText()).isEqualTo(".");
       assertThat(plan.get("parameters").get("projectPath").get("source").asText()).isEqualTo("DEFAULT");
       assertThat(plan.get("unresolvedExecutionDecisions").findValuesAsText("name")).containsExactly("commit");
+    }
+
+    @Test
+    void shouldReportInvalidNodePackageManagerInInitPlanWithoutChangingProject(CapturedOutput output) throws IOException {
+      Path projectPath = setupProjectTestFolder();
+      Path historyFile = projectPath.resolve(".seed4j").resolve("modules").resolve("history.json");
+      String originalHistory = Files.readString(historyFile);
+      String[] yarnArgs = {
+        "apply",
+        "init",
+        "--project-path",
+        projectPath.toString(),
+        "--base-name",
+        "seed4jSampleApplication",
+        "--project-name",
+        "Seed4J Sample Application",
+        "--node-package-manager",
+        "yarn",
+        "--commit",
+        "--plan",
+        "--format",
+        "json",
+      };
+      String[] yarnClassicArgs = {
+        "apply",
+        "init",
+        "--project-path",
+        projectPath.toString(),
+        "--base-name",
+        "seed4jSampleApplication",
+        "--project-name",
+        "Seed4J Sample Application",
+        "--node-package-manager",
+        "yarn-classic",
+        "--commit",
+        "--plan",
+        "--format",
+        "json",
+      };
+
+      int yarnExitCode = commandLine(modules, projects).execute(yarnArgs);
+      JsonNode yarnPlan = jsonPlan(output);
+      int yarnClassicExitCode = commandLine(modules, projects).execute(yarnClassicArgs);
+      JsonNode yarnClassicPlan = jsonPlan(output);
+
+      assertThat(yarnExitCode).isZero();
+      assertThat(yarnClassicExitCode).isZero();
+      assertThat(GitTestUtil.getCommits(projectPath)).isEmpty();
+      assertThat(Files.readString(historyFile)).isEqualTo(originalHistory);
+      assertThat(yarnPlan.get("status").asText()).isEqualTo("NEEDS_USER_INPUT");
+      assertThat(yarnPlan.get("executable").asBoolean()).isFalse();
+      assertThat(yarnPlan.get("parameters").get("nodePackageManager").get("value").asText()).isEqualTo("yarn");
+      assertThat(yarnPlan.get("parameters").get("nodePackageManager").get("valid").asBoolean()).isFalse();
+      assertThat(textValues(yarnPlan.get("parameters").get("nodePackageManager").get("allowedValues"))).containsExactly("npm", "pnpm");
+      assertThat(yarnPlan.get("invalidParameters").get(0).get("name").asText()).isEqualTo("node-package-manager");
+      assertThat(yarnPlan.get("invalidParameters").get(0).get("value").asText()).isEqualTo("yarn");
+      assertThat(textValues(yarnPlan.get("invalidParameters").get(0).get("allowedValues"))).containsExactly("npm", "pnpm");
+      assertThat(yarnClassicPlan.get("status").asText()).isEqualTo("NEEDS_USER_INPUT");
+      assertThat(yarnClassicPlan.get("executable").asBoolean()).isFalse();
+      assertThat(yarnClassicPlan.get("invalidParameters").get(0).get("name").asText()).isEqualTo("node-package-manager");
+      assertThat(yarnClassicPlan.get("invalidParameters").get(0).get("value").asText()).isEqualTo("yarn-classic");
+      assertThat(textValues(yarnClassicPlan.get("invalidParameters").get(0).get("allowedValues"))).containsExactly("npm", "pnpm");
+      assertThat(yarnClassicPlan.get("nextAction").asText()).contains("Ask the user").contains("node-package-manager");
     }
 
     @Test
@@ -341,10 +422,50 @@ class Seed4JCommandsFactoryTest {
       assertThat(plan.get("parameters").get("baseName").get("source").asText()).isEqualTo("EXPLICIT");
       assertThat(plan.get("parameters").get("nodePackageManager").get("value").asText()).isEqualTo("npm");
       assertThat(plan.get("parameters").get("nodePackageManager").get("source").asText()).isEqualTo("EXPLICIT");
+      assertThat(plan.get("parameters").get("nodePackageManager").get("valid").asBoolean()).isTrue();
       assertThat(plan.get("executionDecisions").get("commit").get("value").asBoolean()).isFalse();
       assertThat(plan.get("executionDecisions").get("commit").get("source").asText()).isEqualTo("EXPLICIT");
       assertThat(plan.get("executionDecisions").get("commit").get("safeToInfer").asBoolean()).isFalse();
       assertThat(plan.get("missingParameters")).isEmpty();
+      assertThat(plan.get("invalidParameters")).isEmpty();
+      assertThat(plan.get("unresolvedExecutionDecisions")).isEmpty();
+    }
+
+    @Test
+    void shouldPlanPnpmInitInputsAsExecutableWithoutChangingProject(CapturedOutput output) throws IOException {
+      Path projectPath = setupProjectTestFolder();
+      Path historyFile = projectPath.resolve(".seed4j").resolve("modules").resolve("history.json");
+      String originalHistory = Files.readString(historyFile);
+      String[] args = {
+        "apply",
+        "init",
+        "--project-path",
+        projectPath.toString(),
+        "--base-name",
+        "seed4jSampleApplication",
+        "--project-name",
+        "Seed4J Sample Application",
+        "--node-package-manager",
+        "pnpm",
+        "--commit",
+        "--plan",
+        "--format",
+        "json",
+      };
+
+      int exitCode = commandLine(modules, projects).execute(args);
+
+      JsonNode plan = jsonPlan(output);
+      assertThat(exitCode).isZero();
+      assertThat(GitTestUtil.getCommits(projectPath)).isEmpty();
+      assertThat(Files.readString(historyFile)).isEqualTo(originalHistory);
+      assertThat(plan.get("status").asText()).isEqualTo("RESOLVED");
+      assertThat(plan.get("executable").asBoolean()).isTrue();
+      assertThat(plan.get("parameters").get("nodePackageManager").get("value").asText()).isEqualTo("pnpm");
+      assertThat(plan.get("parameters").get("nodePackageManager").get("valid").asBoolean()).isTrue();
+      assertThat(plan.get("executionDecisions").get("commit").get("value").asBoolean()).isTrue();
+      assertThat(plan.get("missingParameters")).isEmpty();
+      assertThat(plan.get("invalidParameters")).isEmpty();
       assertThat(plan.get("unresolvedExecutionDecisions")).isEmpty();
     }
 
@@ -387,7 +508,15 @@ class Seed4JCommandsFactoryTest {
       assertThat(plan.get("executionDecisions").get("commit").get("value").asBoolean()).isTrue();
       assertThat(plan.get("executionDecisions").get("commit").get("source").asText()).isEqualTo("EXPLICIT");
       assertThat(plan.get("missingParameters")).isEmpty();
+      assertThat(plan.get("invalidParameters")).isEmpty();
       assertThat(plan.get("unresolvedExecutionDecisions")).isEmpty();
+    }
+
+    private List<String> textValues(JsonNode jsonArray) {
+      List<String> values = new ArrayList<>();
+      jsonArray.forEach(value -> values.add(value.asText()));
+
+      return values;
     }
 
     private JsonNode jsonPlan(CapturedOutput output) throws IOException {
@@ -421,6 +550,52 @@ class Seed4JCommandsFactoryTest {
 
       assertThat(exitCode).isZero();
       assertThat(GitTestUtil.getCommits(projectPath)).contains("Apply module: init");
+    }
+
+    @Test
+    void shouldNotApplyInitModuleWithInvalidNodePackageManager(CapturedOutput output) throws IOException {
+      Path projectPath = setupProjectTestFolder();
+      Path historyFile = projectPath.resolve(".seed4j").resolve("modules").resolve("history.json");
+      String originalHistory = Files.readString(historyFile);
+      String[] yarnArgs = {
+        "apply",
+        "init",
+        "--project-path",
+        projectPath.toString(),
+        "--base-name",
+        "seed4jSampleApplication",
+        "--project-name",
+        "Seed4J Sample Application",
+        "--node-package-manager",
+        "yarn",
+      };
+      String[] yarnClassicArgs = {
+        "apply",
+        "init",
+        "--project-path",
+        projectPath.toString(),
+        "--base-name",
+        "seed4jSampleApplication",
+        "--project-name",
+        "Seed4J Sample Application",
+        "--node-package-manager",
+        "yarn-classic",
+      };
+
+      int yarnExitCode = commandLine(modules, projects).execute(yarnArgs);
+      int yarnClassicExitCode = commandLine(modules, projects).execute(yarnClassicArgs);
+
+      assertThat(yarnExitCode).isEqualTo(2);
+      assertThat(yarnClassicExitCode).isEqualTo(2);
+      assertThat(GitTestUtil.getCommits(projectPath)).isEmpty();
+      assertThat(Files.readString(historyFile)).isEqualTo(originalHistory);
+      assertThat(output)
+        .contains("Invalid value for --node-package-manager: yarn")
+        .contains("Invalid value for --node-package-manager: yarn-classic")
+        .contains("Allowed values: npm, pnpm")
+        .contains("Run seed4j apply init --plan --format json before executing init")
+        .doesNotContain("Exception")
+        .doesNotContain("at com.seed4j");
     }
 
     private Object projectPropertyValue(Path projectPath, String propertyKey) {

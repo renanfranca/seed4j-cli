@@ -32,7 +32,12 @@ class ApplyModuleCommand implements Seed4JCommand {
 
   private CommandSpec createSpec() {
     CommandSpec spec = CommandSpec.wrapWithoutInspection(this).name("apply").mixinStandardHelpOptions(true);
-    spec.usageMessage().description("Apply seed4j specific module");
+    spec
+      .usageMessage()
+      .description(
+        "Apply seed4j specific module",
+        "Automation note: agents should run seed4j apply init --plan --format json before executing init."
+      );
 
     return spec;
   }

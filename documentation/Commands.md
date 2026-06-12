@@ -110,6 +110,27 @@ To see the specific parameters for a module and which one is required, run:
 seed4j apply <module-name> --help
 ```
 
+#### Planning `apply init` for automation
+
+Automation agents should inspect the non-mutating init plan before executing project initialization:
+
+```bash
+seed4j apply init --plan --format json
+```
+
+The JSON plan reports:
+
+- `missingParameters`: required values that need user input.
+- `invalidParameters`: supplied values that Seed4J will reject during execution.
+- `parameters.<name>.safeToInfer`: whether an automation caller may infer the value without asking the user.
+- `parameters.<name>.exampleValue`: an API-provided example for required values; this is not treated as an executable default.
+- `parameters.<name>.defaultValue`: an executable default for optional values.
+- `parameters.nodePackageManager.allowedValues`: the executable package manager values, currently `npm` and `pnpm`.
+
+For `apply init`, agents must not infer required values from folder names, examples, or documentation snippets. Values marked
+`safeToInfer=false` require asking the user before running the mutating command. Invalid `--node-package-manager` values such
+as `yarn` or `yarn-classic` are rejected before files, project history, or Git state are changed.
+
 ### Install a Runtime Extension
 
 To install or replace the active runtime extension:
@@ -252,6 +273,8 @@ Most commands accept additional options and parameters:
 - `--project-path=<projectpath>`: Specifies the project directory (defaults to current directory)
 - `--[no-]commit`: Initializes Git if needed and commits generated changes (defaults to true). `--no-commit` skips both Git
   initialization and commit.
+- `--plan --format json`: For `apply init`, prints a non-mutating JSON plan that reports missing inputs, invalid values,
+  defaults, examples, and safe next actions for automation.
 - `--debug`: Enables runtime bootstrap diagnostics (mainly for `extension` mode runtime troubleshooting)
 - `--project-name=<projectname>`: The full project name (required for some modules)
 - `--base-name=<basename>`: The project's short name, used for naming files and classes (only letters and numbers allowed)

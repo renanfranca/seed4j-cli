@@ -10,6 +10,7 @@ record ApplyModulePlan(
   Map<String, PlanParameter> parameters,
   Map<String, PlanExecutionDecision> executionDecisions,
   List<MissingPlanParameter> missingParameters,
+  List<InvalidPlanParameter> invalidParameters,
   List<UnresolvedExecutionDecision> unresolvedExecutionDecisions,
   String nextAction
 ) {}

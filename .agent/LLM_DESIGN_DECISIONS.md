@@ -46,6 +46,20 @@ For a normal new Git project, omit --no-commit.
 Use --no-commit only when the user explicitly asks for no Git repository or no Seed4J commit.
 ```
 
+## Init Plan Contract
+
+Automation agents should run `seed4j apply init --plan --format json` before executing `apply init`. Help text and validation
+errors should point back to that command because help alone is too easy for agents to skip or reinterpret.
+
+The plan is a preflight contract, not just a rendered help page:
+
+- Required values with API defaults are exposed as `exampleValue`, not executable defaults. Agents must ask the user for
+  values marked `safeToInfer=false`.
+- Optional values with real defaults are exposed with `source: "DEFAULT"`, `defaultValue`, and `safeToInfer: true`.
+- Explicit invalid values are reported in `invalidParameters` with `allowedValues`; plan status stays `NEEDS_USER_INPUT`.
+- `node-package-manager` allowed values must match the executable Seed4J enum. For Seed4J 2.2.0 those values are `npm` and
+  `pnpm`; `yarn` and `yarn-classic` must fail before mutation.
+
 ## Future MCP Guidance
 
 If an MCP server is added, expose intent-shaped tools such as:
