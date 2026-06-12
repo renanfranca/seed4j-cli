@@ -4,6 +4,8 @@ import static com.seed4j.cli.command.infrastructure.primary.CliFixture.commandLi
 import static com.seed4j.cli.command.infrastructure.primary.CliFixture.setupProjectTestFolder;
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.seed4j.cli.IntegrationTest;
 import com.seed4j.cli.command.domain.RuntimeDisplay;
 import com.seed4j.module.application.Seed4JModulesApplicationService;
@@ -12,6 +14,7 @@ import com.seed4j.project.application.ProjectsApplicationService;
 import com.seed4j.project.domain.ProjectPath;
 import com.seed4j.project.domain.history.ProjectHistory;
 import java.io.IOException;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Optional;
 import org.junit.jupiter.api.DisplayName;
@@ -130,6 +133,8 @@ class Seed4JCommandsFactoryTest {
   @DisplayName("apply")
   class ApplyModule {
 
+    private final ObjectMapper objectMapper = new ObjectMapper();
+
     @Test
     void shouldNotApplyWithoutModuleSlugSubcommand(CapturedOutput output) {
       String[] args = { "apply" };
@@ -199,6 +204,20 @@ class Seed4JCommandsFactoryTest {
     }
 
     @Test
+    void shouldShowAutomationNoteInInitHelp(CapturedOutput output) {
+      String[] args = { "apply", "init", "--help" };
+
+      int exitCode = commandLine(modules, projects).execute(args);
+
+      assertThat(exitCode).isZero();
+      assertThat(output)
+        .contains("Automation note")
+        .contains("agents should run seed4j apply init --plan --format json")
+        .contains("agents must not infer required values from folder names or examples")
+        .contains("values marked safeToInfer=false require asking the user");
+    }
+
+    @Test
     void shouldApplyInitModuleWithRequiredOptions() throws IOException {
       Path projectPath = setupProjectTestFolder();
       String[] args = {
@@ -237,6 +256,149 @@ class Seed4JCommandsFactoryTest {
         .contains("'--project-name=<projectname*>'")
         .contains("Project short name (only letters and numbers) (required)")
         .contains("Project full name (required)");
+    }
+
+    @Test
+    void shouldPlanInitWithMissingRequiredInputsWithoutChangingProject(CapturedOutput output) throws IOException {
+      Path projectPath = setupProjectTestFolder();
+      Path historyFile = projectPath.resolve(".seed4j").resolve("modules").resolve("history.json");
+      String originalHistory = Files.readString(historyFile);
+      String[] args = { "apply", "init", "--project-path", projectPath.toString(), "--plan", "--format", "json" };
+
+      int exitCode = commandLine(modules, projects).execute(args);
+
+      JsonNode plan = jsonPlan(output);
+      assertThat(exitCode).isZero();
+      assertThat(GitTestUtil.getCommits(projectPath)).isEmpty();
+      assertThat(Files.readString(historyFile)).isEqualTo(originalHistory);
+      assertThat(plan.get("status").asText()).isEqualTo("NEEDS_USER_INPUT");
+      assertThat(plan.get("executable").asBoolean()).isFalse();
+      assertThat(plan.get("parameters").get("projectPath").get("source").asText()).isEqualTo("EXPLICIT");
+      assertThat(plan.get("parameters").get("projectName").get("source").asText()).isEqualTo("MISSING");
+      assertThat(plan.get("parameters").get("projectName").get("safeToInfer").asBoolean()).isFalse();
+      assertThat(plan.get("parameters").get("baseName").get("source").asText()).isEqualTo("MISSING");
+      assertThat(plan.get("parameters").get("baseName").get("safeToInfer").asBoolean()).isFalse();
+      assertThat(plan.get("parameters").get("nodePackageManager").get("source").asText()).isEqualTo("MISSING");
+      assertThat(plan.get("parameters").get("nodePackageManager").get("safeToInfer").asBoolean()).isFalse();
+      assertThat(plan.get("missingParameters").findValuesAsText("name")).containsExactlyInAnyOrder(
+        "project-name",
+        "base-name",
+        "node-package-manager"
+      );
+      assertThat(plan.get("unresolvedExecutionDecisions").findValuesAsText("name")).containsExactly("commit");
+      assertThat(plan.get("unresolvedExecutionDecisions").get(0).get("safeToInfer").asBoolean()).isFalse();
+      assertThat(plan.get("nextAction").asText()).contains("Ask the user").contains("do not generate an executable command");
+    }
+
+    @Test
+    void shouldReportDefaultProjectPathInInitPlan(CapturedOutput output) throws IOException {
+      String[] args = { "apply", "init", "--plan", "--format", "json" };
+
+      int exitCode = commandLine(modules, projects).execute(args);
+
+      JsonNode plan = jsonPlan(output);
+      assertThat(exitCode).isZero();
+      assertThat(plan.get("status").asText()).isEqualTo("NEEDS_USER_INPUT");
+      assertThat(plan.get("executable").asBoolean()).isFalse();
+      assertThat(plan.get("parameters").get("projectPath").get("value").asText()).isEqualTo(".");
+      assertThat(plan.get("parameters").get("projectPath").get("source").asText()).isEqualTo("DEFAULT");
+      assertThat(plan.get("unresolvedExecutionDecisions").findValuesAsText("name")).containsExactly("commit");
+    }
+
+    @Test
+    void shouldPlanExplicitInitInputsAsExecutableWithoutChangingProject(CapturedOutput output) throws IOException {
+      Path projectPath = setupProjectTestFolder();
+      Path historyFile = projectPath.resolve(".seed4j").resolve("modules").resolve("history.json");
+      String originalHistory = Files.readString(historyFile);
+      String[] args = {
+        "apply",
+        "init",
+        "--project-path",
+        projectPath.toString(),
+        "--base-name",
+        "seed4jSampleApplication",
+        "--project-name",
+        "Seed4J Sample Application",
+        "--node-package-manager",
+        "npm",
+        "--no-commit",
+        "--plan",
+        "--format",
+        "json",
+      };
+
+      int exitCode = commandLine(modules, projects).execute(args);
+
+      JsonNode plan = jsonPlan(output);
+      assertThat(exitCode).isZero();
+      assertThat(GitTestUtil.getCommits(projectPath)).isEmpty();
+      assertThat(Files.readString(historyFile)).isEqualTo(originalHistory);
+      assertThat(plan.get("status").asText()).isEqualTo("RESOLVED");
+      assertThat(plan.get("executable").asBoolean()).isTrue();
+      assertThat(plan.get("parameters").get("projectName").get("value").asText()).isEqualTo("Seed4J Sample Application");
+      assertThat(plan.get("parameters").get("projectName").get("source").asText()).isEqualTo("EXPLICIT");
+      assertThat(plan.get("parameters").get("baseName").get("value").asText()).isEqualTo("seed4jSampleApplication");
+      assertThat(plan.get("parameters").get("baseName").get("source").asText()).isEqualTo("EXPLICIT");
+      assertThat(plan.get("parameters").get("nodePackageManager").get("value").asText()).isEqualTo("npm");
+      assertThat(plan.get("parameters").get("nodePackageManager").get("source").asText()).isEqualTo("EXPLICIT");
+      assertThat(plan.get("executionDecisions").get("commit").get("value").asBoolean()).isFalse();
+      assertThat(plan.get("executionDecisions").get("commit").get("source").asText()).isEqualTo("EXPLICIT");
+      assertThat(plan.get("executionDecisions").get("commit").get("safeToInfer").asBoolean()).isFalse();
+      assertThat(plan.get("missingParameters")).isEmpty();
+      assertThat(plan.get("unresolvedExecutionDecisions")).isEmpty();
+    }
+
+    @Test
+    void shouldPlanInitInputsFromProjectHistoryAsExecutableWithExplicitCommit(CapturedOutput output) throws IOException {
+      Path projectPath = setupProjectTestFolder();
+      String[] initModuleArgs = {
+        "apply",
+        "init",
+        "--project-path",
+        projectPath.toString(),
+        "--base-name",
+        "seed4jSampleApplication",
+        "--project-name",
+        "Seed4J Sample Application",
+        "--node-package-manager",
+        "npm",
+        "--no-commit",
+      };
+      int initModuleExitCode = commandLine(modules, projects).execute(initModuleArgs);
+      Path historyFile = projectPath.resolve(".seed4j").resolve("modules").resolve("history.json");
+      String historyAfterInit = Files.readString(historyFile);
+      String[] args = { "apply", "init", "--project-path", projectPath.toString(), "--commit", "--plan", "--format", "json" };
+
+      int exitCode = commandLine(modules, projects).execute(args);
+
+      JsonNode plan = jsonPlan(output);
+      assertThat(initModuleExitCode).isZero();
+      assertThat(exitCode).isZero();
+      assertThat(GitTestUtil.getCommits(projectPath)).isEmpty();
+      assertThat(Files.readString(historyFile)).isEqualTo(historyAfterInit);
+      assertThat(plan.get("status").asText()).isEqualTo("RESOLVED");
+      assertThat(plan.get("executable").asBoolean()).isTrue();
+      assertThat(plan.get("parameters").get("projectName").get("value").asText()).isEqualTo("Seed4J Sample Application");
+      assertThat(plan.get("parameters").get("projectName").get("source").asText()).isEqualTo("PROJECT_HISTORY");
+      assertThat(plan.get("parameters").get("baseName").get("value").asText()).isEqualTo("seed4jSampleApplication");
+      assertThat(plan.get("parameters").get("baseName").get("source").asText()).isEqualTo("PROJECT_HISTORY");
+      assertThat(plan.get("parameters").get("nodePackageManager").get("value").asText()).isEqualTo("npm");
+      assertThat(plan.get("parameters").get("nodePackageManager").get("source").asText()).isEqualTo("PROJECT_HISTORY");
+      assertThat(plan.get("executionDecisions").get("commit").get("value").asBoolean()).isTrue();
+      assertThat(plan.get("executionDecisions").get("commit").get("source").asText()).isEqualTo("EXPLICIT");
+      assertThat(plan.get("missingParameters")).isEmpty();
+      assertThat(plan.get("unresolvedExecutionDecisions")).isEmpty();
+    }
+
+    private JsonNode jsonPlan(CapturedOutput output) throws IOException {
+      String json = output
+        .getOut()
+        .lines()
+        .filter(line -> line.startsWith("{"))
+        .reduce((first, second) -> second)
+        .orElseThrow();
+
+      return objectMapper.readTree(json);
     }
 
     @Test

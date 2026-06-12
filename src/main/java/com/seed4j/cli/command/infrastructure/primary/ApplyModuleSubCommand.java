@@ -1,5 +1,7 @@
 package com.seed4j.cli.command.infrastructure.primary;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.seed4j.cli.shared.error.domain.Assert;
 import com.seed4j.cli.shared.generation.domain.ExcludeFromGeneratedCodeCoverage;
 import com.seed4j.module.application.Seed4JModulesApplicationService;
@@ -16,7 +18,9 @@ import com.seed4j.module.domain.resource.Seed4JModuleResource;
 import com.seed4j.project.application.ProjectsApplicationService;
 import com.seed4j.project.domain.ProjectPath;
 import com.seed4j.project.domain.history.ModuleParameters;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Callable;
@@ -26,16 +30,21 @@ import picocli.CommandLine.MissingParameterException;
 import picocli.CommandLine.Model.ArgSpec;
 import picocli.CommandLine.Model.CommandSpec;
 import picocli.CommandLine.Model.OptionSpec;
+import picocli.CommandLine.ParameterException;
 
 class ApplyModuleSubCommand implements Callable<Integer> {
 
   private static final String PROJECT_PATH_OPTION = "--project-path";
   private static final String COMMIT_OPTION = "--commit";
+  private static final String PLAN_OPTION = "--plan";
+  private static final String FORMAT_OPTION = "--format";
+  private static final String INIT_MODULE = "init";
 
   private final Seed4JModulesApplicationService modules;
   private final Seed4JModuleResource module;
   private final CommandSpec commandSpec;
   private final ProjectsApplicationService projects;
+  private final ObjectMapper objectMapper = new ObjectMapper();
 
   public ApplyModuleSubCommand(Seed4JModulesApplicationService modules, Seed4JModuleResource module, ProjectsApplicationService projects) {
     this.modules = modules;
@@ -50,7 +59,19 @@ class ApplyModuleSubCommand implements Callable<Integer> {
     Seed4JModulePropertiesDefinition properties
   ) {
     CommandSpec spec = CommandSpec.wrapWithoutInspection(this).name(moduleSlug.get()).mixinStandardHelpOptions(true);
-    spec.usageMessage().description(escape(operation));
+    spec.usageMessage().description(escape(operation)).width(160);
+
+    if (INIT_MODULE.equals(moduleSlug.get())) {
+      spec.usageMessage().footer(
+        """
+
+        Automation note:
+        agents should run seed4j apply init --plan --format json;
+        agents must not infer required values from folder names or examples;
+        values marked safeToInfer=false require asking the user.
+        """
+      );
+    }
 
     addOptions(spec, properties);
 
@@ -76,6 +97,19 @@ class ApplyModuleSubCommand implements Callable<Integer> {
         .description("Initialize Git if needed and commit generated changes; --no-commit skips Git init and commit")
         .negatable(true)
         .type(Boolean.class)
+        .build()
+    );
+
+    spec.addOption(
+      OptionSpec.builder(PLAN_OPTION).description("Build a non-mutating apply plan").type(Boolean.class).defaultValue("false").build()
+    );
+
+    spec.addOption(
+      OptionSpec.builder(FORMAT_OPTION)
+        .description("Plan output format: text or json")
+        .paramLabel("<text|json>")
+        .defaultValue("text")
+        .type(String.class)
         .build()
     );
 
@@ -142,12 +176,142 @@ class ApplyModuleSubCommand implements Callable<Integer> {
   }
 
   @Override
-  public Integer call() {
+  public Integer call() throws JsonProcessingException {
+    if (planning()) {
+      printPlan();
+
+      return ExitCode.OK;
+    }
+
     Seed4JModuleProperties properties = new Seed4JModuleProperties(projectPath(), commitEnabled(), parameters());
     Seed4JModuleToApply moduleToApply = new Seed4JModuleToApply(new Seed4JModuleSlug(module.slug().get()), properties);
     modules.apply(moduleToApply);
 
     return ExitCode.OK;
+  }
+
+  private boolean planning() {
+    return commandSpec.findOption(PLAN_OPTION).getValue();
+  }
+
+  private void printPlan() throws JsonProcessingException {
+    if (!INIT_MODULE.equals(module.slug().get())) {
+      throw new ParameterException(commandSpec.commandLine(), "--plan currently supports only the init module");
+    }
+
+    if (planFormat() != PlanFormat.JSON) {
+      throw new ParameterException(commandSpec.commandLine(), "--plan currently supports only --format json");
+    }
+
+    commandSpec.commandLine().getOut().println(objectMapper.writeValueAsString(plan()));
+  }
+
+  private PlanFormat planFormat() {
+    try {
+      return PlanFormat.from(commandSpec.findOption(FORMAT_OPTION).getValue());
+    } catch (IllegalArgumentException exception) {
+      throw new ParameterException(commandSpec.commandLine(), exception.getMessage());
+    }
+  }
+
+  private ApplyModulePlan plan() {
+    Map<String, Object> explicitParameters = parametersFromOptions();
+    Map<String, Object> historyParameters = projects.getHistory(new ProjectPath(projectPath())).latestProperties().get();
+    Map<String, PlanParameter> planParameters = planParameters(explicitParameters, historyParameters);
+    List<MissingPlanParameter> missingParameters = missingParameters(planParameters);
+    Map<String, PlanExecutionDecision> executionDecisions = executionDecisions();
+    List<UnresolvedExecutionDecision> unresolvedExecutionDecisions = unresolvedExecutionDecisions(executionDecisions);
+    boolean executable = missingParameters.isEmpty() && unresolvedExecutionDecisions.isEmpty();
+
+    return new ApplyModulePlan(
+      executable ? ApplyPlanStatus.RESOLVED : ApplyPlanStatus.NEEDS_USER_INPUT,
+      executable,
+      module.slug().get(),
+      planParameters,
+      executionDecisions,
+      missingParameters,
+      unresolvedExecutionDecisions,
+      nextAction(executable)
+    );
+  }
+
+  private Map<String, PlanParameter> planParameters(Map<String, Object> explicitParameters, Map<String, Object> historyParameters) {
+    Map<String, PlanParameter> planParameters = new LinkedHashMap<>();
+    OptionSpec projectPathOption = commandSpec.findOption(PROJECT_PATH_OPTION);
+    PlanValueSource projectPathSource = explicitlyProvided(projectPathOption) ? PlanValueSource.EXPLICIT : PlanValueSource.DEFAULT;
+    planParameters.put("projectPath", new PlanParameter("project-path", projectPath(), projectPathSource, true));
+
+    module
+      .propertiesDefinition()
+      .stream()
+      .forEach(property -> {
+        String propertyName = property.key().get();
+        String dashedPropertyName = dashedName(toDashedFormat(property.key()));
+        PlanValueSource source = parameterSource(propertyName, explicitParameters, historyParameters);
+        Object value = switch (source) {
+          case EXPLICIT -> explicitParameters.get(propertyName);
+          case PROJECT_HISTORY -> historyParameters.get(propertyName);
+          case DEFAULT, MISSING -> null;
+        };
+        planParameters.put(propertyName, new PlanParameter(dashedPropertyName, value, source, !property.isMandatory()));
+      });
+
+    return planParameters;
+  }
+
+  private PlanValueSource parameterSource(
+    String propertyName,
+    Map<String, Object> explicitParameters,
+    Map<String, Object> historyParameters
+  ) {
+    if (explicitParameters.containsKey(propertyName)) {
+      return PlanValueSource.EXPLICIT;
+    }
+
+    if (historyParameters.containsKey(propertyName)) {
+      return PlanValueSource.PROJECT_HISTORY;
+    }
+
+    return PlanValueSource.MISSING;
+  }
+
+  private List<MissingPlanParameter> missingParameters(Map<String, PlanParameter> planParameters) {
+    return module
+      .propertiesDefinition()
+      .stream()
+      .filter(Seed4JModulePropertyDefinition::isMandatory)
+      .map(property -> planParameters.get(property.key().get()))
+      .filter(parameter -> parameter.source() == PlanValueSource.MISSING)
+      .map(parameter -> new MissingPlanParameter(parameter.name(), false))
+      .toList();
+  }
+
+  private Map<String, PlanExecutionDecision> executionDecisions() {
+    Map<String, PlanExecutionDecision> executionDecisions = new LinkedHashMap<>();
+    OptionSpec commitOption = commandSpec.findOption(COMMIT_OPTION);
+    PlanValueSource source = explicitlyProvided(commitOption) ? PlanValueSource.EXPLICIT : PlanValueSource.MISSING;
+    executionDecisions.put("commit", new PlanExecutionDecision("commit", commitOption.getValue(), source, false));
+
+    return executionDecisions;
+  }
+
+  private List<UnresolvedExecutionDecision> unresolvedExecutionDecisions(Map<String, PlanExecutionDecision> executionDecisions) {
+    List<UnresolvedExecutionDecision> unresolvedExecutionDecisions = new ArrayList<>();
+    PlanExecutionDecision commitDecision = executionDecisions.get("commit");
+
+    if (commitDecision.source() == PlanValueSource.MISSING) {
+      unresolvedExecutionDecisions.add(new UnresolvedExecutionDecision("commit", false));
+    }
+
+    return unresolvedExecutionDecisions;
+  }
+
+  private String nextAction(boolean executable) {
+    if (executable) {
+      return "The plan is executable. Run apply without --plan when the user confirms.";
+    }
+
+    return "Ask the user for values marked safeToInfer=false and do not generate an executable command.";
   }
 
   private String projectPath() {
@@ -178,9 +342,22 @@ class ApplyModuleSubCommand implements Callable<Integer> {
       .options()
       .stream()
       .filter(option -> option.getValue() != null)
+      .filter(option -> moduleParameterOption(option.longestName()))
       .forEach(option -> map.put(toCamelCaseFormat(option.longestName()), option.getValue()));
 
     return map;
+  }
+
+  private boolean moduleParameterOption(String optionName) {
+    return !List.of(PROJECT_PATH_OPTION, COMMIT_OPTION, PLAN_OPTION, FORMAT_OPTION).contains(optionName);
+  }
+
+  private boolean explicitlyProvided(OptionSpec option) {
+    return !option.originalStringValues().isEmpty();
+  }
+
+  private static String dashedName(String optionName) {
+    return optionName.substring(2);
   }
 
   private void validateRequiredOptions(ModuleParameters moduleParameters) {
