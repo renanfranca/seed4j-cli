@@ -23,6 +23,10 @@ import org.springframework.test.context.DynamicPropertySource;
 @ExtendWith(OutputCaptureExtension.class)
 @Execution(ExecutionMode.SAME_THREAD)
 @IntegrationTest
+@org.junit.jupiter.api.condition.EnabledIf(
+  value = "com.seed4j.cli.bootstrap.fixture.ExtensionRuntimeFixture#runtimeExtensionsSupported",
+  disabledReason = "Runtime extensions are suspended in the local integration build"
+)
 class ExtensionRuntimeCommandsTest {
 
   private static final Path USER_HOME = ExtensionRuntimeCommandsFixture.temporaryUserHome();

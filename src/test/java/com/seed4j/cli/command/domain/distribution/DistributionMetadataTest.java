@@ -52,4 +52,35 @@ class DistributionMetadataTest {
       .isInstanceOf(IllegalArgumentException.class)
       .hasMessage("Stable distribution must make every Seed4J module available");
   }
+
+  @Test
+  void shouldRejectLocalIntegrationWithoutUpstreamCommit() {
+    Seed4JDependencyCoordinate coordinate = Seed4JDependencyCoordinate.versioned("com.seed4j", "seed4j-engine", "2.2.1-SNAPSHOT");
+
+    assertThatThrownBy(() -> new DistributionIdentity(ReleaseChannel.LOCAL_INTEGRATION, coordinate, Optional.empty()))
+      .isInstanceOf(IllegalArgumentException.class)
+      .hasMessage("Local integration requires dependency version and upstream commit");
+  }
+
+  @Test
+  void shouldRejectLocalIntegrationWithoutDependencyVersion() {
+    Seed4JDependencyCoordinate coordinate = Seed4JDependencyCoordinate.unversioned("com.seed4j", "seed4j-engine");
+
+    assertThatThrownBy(() -> new DistributionIdentity(ReleaseChannel.LOCAL_INTEGRATION, coordinate, Optional.of(UPSTREAM_COMMIT)))
+      .isInstanceOf(IllegalArgumentException.class)
+      .hasMessage("Local integration requires dependency version and upstream commit");
+  }
+
+  @Test
+  void shouldRejectAvailableExtensionGeneratorInLocalIntegration() {
+    DistributionIdentity identity = new DistributionIdentity(
+      ReleaseChannel.LOCAL_INTEGRATION,
+      Seed4JDependencyCoordinate.versioned("com.seed4j", "seed4j-engine", "2.2.1-SNAPSHOT"),
+      Optional.of(UPSTREAM_COMMIT)
+    );
+
+    assertThatThrownBy(() -> new DistributionMetadata(identity, Seed4JModuleAvailability.allAvailable()))
+      .isInstanceOf(IllegalArgumentException.class)
+      .hasMessage("Local integration must make only seed4j-extension unavailable");
+  }
 }

@@ -2,6 +2,7 @@ package com.seed4j.cli.command.infrastructure.primary;
 
 import com.seed4j.cli.command.domain.RuntimeExtensionModeSwitchException;
 import com.seed4j.cli.command.domain.RuntimeExtensionModeSwitchResult;
+import com.seed4j.cli.shared.distribution.domain.RuntimeExtensionsSuspendedException;
 import com.seed4j.cli.shared.error.domain.Assert;
 import java.util.function.Supplier;
 import picocli.CommandLine.ExitCode;
@@ -47,6 +48,9 @@ final class RuntimeExtensionModeCommand {
       System.out.println(successMessage);
       System.out.printf("Config: %s%n", switchResult.configPath());
       return ExitCode.OK;
+    } catch (RuntimeExtensionsSuspendedException _) {
+      System.err.println(SuspendedRuntimeExtensionDiagnostic.message());
+      return ExitCode.USAGE;
     } catch (RuntimeExtensionModeSwitchException exception) {
       System.err.println(exception.getMessage());
       return ExitCode.SOFTWARE;

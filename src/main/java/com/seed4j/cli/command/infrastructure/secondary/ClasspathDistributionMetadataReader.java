@@ -49,7 +49,13 @@ class ClasspathDistributionMetadataReader implements DistributionMetadataReader 
         return DistributionMetadata.stable();
       }
 
-      return metadata(properties(resource));
+      Properties properties = properties(resource);
+      if ("local-integration".equals(properties.getProperty(RELEASE_CHANNEL))) {
+        return localMetadata(properties);
+      }
+      return metadata(properties);
+    } catch (InvalidLocalIntegrationMetadataException exception) {
+      throw exception;
     } catch (IOException | RuntimeException _) {
       return DistributionMetadata.stable();
     }
@@ -63,6 +69,14 @@ class ClasspathDistributionMetadataReader implements DistributionMetadataReader 
     return properties;
   }
 
+  private static DistributionMetadata localMetadata(Properties properties) {
+    try {
+      return metadata(properties);
+    } catch (RuntimeException exception) {
+      throw new InvalidLocalIntegrationMetadataException(exception);
+    }
+  }
+
   private static DistributionMetadata metadata(Properties properties) {
     requireAvailabilityMetadata(properties);
     if (properties.containsKey(LEGACY_UPSTREAM_COMMIT)) {
@@ -70,7 +84,7 @@ class ClasspathDistributionMetadataReader implements DistributionMetadataReader 
     }
     ReleaseChannel channel = channel(properties.getProperty(RELEASE_CHANNEL));
     Seed4JDependencyCoordinate dependencyCoordinate = dependencyCoordinate(properties.getProperty(DEPENDENCY_COORDINATE));
-    Optional<Seed4JUpstreamCommit> upstreamCommit = upstreamCommit(channel, dependencyCoordinate);
+    Optional<Seed4JUpstreamCommit> upstreamCommit = upstreamCommit(channel, dependencyCoordinate, properties);
     return new DistributionMetadata(
       new DistributionIdentity(channel, dependencyCoordinate, upstreamCommit),
       new Seed4JModuleAvailability(unavailableModules(properties.getProperty(UNAVAILABLE_MODULES)))
@@ -87,6 +101,7 @@ class ClasspathDistributionMetadataReader implements DistributionMetadataReader 
     return switch (value) {
       case "stable" -> ReleaseChannel.STABLE;
       case "experimental" -> ReleaseChannel.EXPERIMENTAL;
+      case "local-integration" -> ReleaseChannel.LOCAL_INTEGRATION;
       case null, default -> throw new IllegalArgumentException("Unknown release channel");
     };
   }
@@ -102,7 +117,14 @@ class ClasspathDistributionMetadataReader implements DistributionMetadataReader 
     return Seed4JDependencyCoordinate.versioned(segments[0].trim(), segments[1].trim(), segments[2].trim());
   }
 
-  private static Optional<Seed4JUpstreamCommit> upstreamCommit(ReleaseChannel channel, Seed4JDependencyCoordinate dependencyCoordinate) {
+  private static Optional<Seed4JUpstreamCommit> upstreamCommit(
+    ReleaseChannel channel,
+    Seed4JDependencyCoordinate dependencyCoordinate,
+    Properties properties
+  ) {
+    if (channel.localIntegration()) {
+      return Optional.of(new Seed4JUpstreamCommit(properties.getProperty("integration-upstream-commit", "")));
+    }
     if (!channel.experimental()) {
       return Optional.empty();
     }
@@ -120,5 +142,12 @@ class ClasspathDistributionMetadataReader implements DistributionMetadataReader 
       return Set.of();
     }
     return Arrays.stream(value.split(",")).map(String::trim).map(DistributionModuleSlug::new).collect(Collectors.toUnmodifiableSet());
+  }
+
+  private static final class InvalidLocalIntegrationMetadataException extends IllegalStateException {
+
+    private InvalidLocalIntegrationMetadataException(RuntimeException cause) {
+      super("Invalid local-integration build metadata", cause);
+    }
   }
 }

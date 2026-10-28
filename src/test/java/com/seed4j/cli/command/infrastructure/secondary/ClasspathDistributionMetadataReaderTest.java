@@ -1,6 +1,7 @@
 package com.seed4j.cli.command.infrastructure.secondary;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.seed4j.cli.UnitTest;
 import com.seed4j.cli.command.domain.distribution.DistributionMetadata;
@@ -46,6 +47,7 @@ class ClasspathDistributionMetadataReaderTest {
     ReleaseChannel expectedChannel = switch (channel) {
       case "experimental" -> ReleaseChannel.EXPERIMENTAL;
       case "stable" -> ReleaseChannel.STABLE;
+      case "local-integration" -> ReleaseChannel.LOCAL_INTEGRATION;
       default -> throw new IllegalStateException("Unknown seed4j.release-channel: " + channel);
     };
     Matcher expectedSha = Pattern.compile("\\.([0-9a-fA-F]{40})-SNAPSHOT$").matcher(version);
@@ -66,8 +68,28 @@ class ClasspathDistributionMetadataReaderTest {
       return;
     }
 
+    if (expectedChannel == ReleaseChannel.LOCAL_INTEGRATION) {
+      assertThat(metadata.identity().upstreamCommit()).hasValueSatisfying(commit ->
+        assertThat(commit.value()).isEqualTo(expectedProperty(properties, "seed4j.integration-commit"))
+      );
+      assertThat(metadata.moduleAvailability().unavailableModules()).containsExactly(new DistributionModuleSlug("seed4j-extension"));
+      return;
+    }
     assertThat(metadata.identity().upstreamCommit()).isEmpty();
     assertThat(metadata.moduleAvailability().unavailableModules()).isEmpty();
+  }
+
+  @Test
+  void shouldRejectLocalIntegrationWithoutFullCommitInsteadOfClaimingStable() {
+    ClasspathDistributionMetadataReader reader = readerFor(
+      """
+      release-channel=local-integration
+      seed4j-dependency-coordinate=com.seed4j:seed4j-engine:2.2.1-SNAPSHOT
+      unavailable-modules=seed4j-extension
+      """
+    );
+
+    assertThatThrownBy(reader::read).isInstanceOf(IllegalStateException.class).hasMessage("Invalid local-integration build metadata");
   }
 
   private static String expectedProperty(Element properties, String name) {

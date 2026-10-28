@@ -7,6 +7,7 @@ import com.seed4j.cli.command.domain.RuntimeExtensionInstallRequest;
 import com.seed4j.cli.command.domain.RuntimeExtensionInstallResult;
 import com.seed4j.cli.command.domain.RuntimeExtensionInstallationException;
 import com.seed4j.cli.command.domain.RuntimeExtensionJarPath;
+import com.seed4j.cli.shared.distribution.domain.RuntimeExtensionsSuspendedException;
 import java.util.concurrent.Callable;
 import org.springframework.stereotype.Component;
 import picocli.CommandLine.ExitCode;
@@ -51,6 +52,9 @@ class ExtensionInstallCommand implements Callable<Integer> {
       RuntimeExtensionInstallResult installationResult = runtimeExtensionInstallApplicationService.install(request);
       printSuccess(installationResult);
       return ExitCode.OK;
+    } catch (RuntimeExtensionsSuspendedException _) {
+      System.err.println(SuspendedRuntimeExtensionDiagnostic.message());
+      return ExitCode.USAGE;
     } catch (RuntimeExtensionInstallationException exception) {
       System.err.println(exception.getMessage());
       return ExitCode.SOFTWARE;

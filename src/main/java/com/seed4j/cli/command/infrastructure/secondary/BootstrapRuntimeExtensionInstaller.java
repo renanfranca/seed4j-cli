@@ -12,15 +12,23 @@ import com.seed4j.cli.command.domain.RuntimeExtensionInstaller;
 import com.seed4j.cli.command.domain.RuntimeExtensionMetadataPath;
 import com.seed4j.cli.command.domain.RuntimeExtensionReplacementStatus;
 import com.seed4j.cli.command.domain.RuntimeModeConfigurationPath;
+import com.seed4j.cli.shared.distribution.domain.RuntimeExtensionsSuspendedException;
+import com.seed4j.cli.shared.distribution.infrastructure.secondary.ClasspathBuildCapabilities;
 import com.seed4j.cli.shared.error.domain.Assert;
 import org.springframework.stereotype.Component;
 
 @Component
 public class BootstrapRuntimeExtensionInstaller implements RuntimeExtensionInstaller {
 
+  private final ClasspathBuildCapabilities capabilities;
   private final JavaRuntimeExtensionInstaller runtimeExtensionInstaller;
 
-  public BootstrapRuntimeExtensionInstaller(JavaRuntimeExtensionInstaller runtimeExtensionInstaller) {
+  public BootstrapRuntimeExtensionInstaller(
+    JavaRuntimeExtensionInstaller runtimeExtensionInstaller,
+    ClasspathBuildCapabilities capabilities
+  ) {
+    Assert.notNull("capabilities", capabilities);
+    this.capabilities = capabilities;
     Assert.notNull("runtimeExtensionInstaller", runtimeExtensionInstaller);
 
     this.runtimeExtensionInstaller = runtimeExtensionInstaller;
@@ -30,6 +38,7 @@ public class BootstrapRuntimeExtensionInstaller implements RuntimeExtensionInsta
   public RuntimeExtensionInstallResult install(RuntimeExtensionInstallRequest request) {
     Assert.notNull("request", request);
 
+    requireExtensionSupport();
     try {
       JavaRuntimeExtensionInstallation installation = runtimeExtensionInstaller.install(
         new JavaRuntimeExtensionInstallationRequest(
@@ -47,6 +56,12 @@ public class BootstrapRuntimeExtensionInstaller implements RuntimeExtensionInsta
       );
     } catch (JavaRuntimeExtensionInstallationException exception) {
       throw new RuntimeExtensionInstallationException(exception.getMessage(), exception);
+    }
+  }
+
+  private void requireExtensionSupport() {
+    if (capabilities.runtimeExtensions().suspended()) {
+      throw new RuntimeExtensionsSuspendedException();
     }
   }
 }

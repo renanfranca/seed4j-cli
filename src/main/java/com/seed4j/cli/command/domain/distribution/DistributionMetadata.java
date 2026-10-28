@@ -14,7 +14,10 @@ public record DistributionMetadata(DistributionIdentity identity, Seed4JModuleAv
     if (identity.channel().experimental() && !moduleAvailability.unavailableModules().equals(Set.of(EXTENSION_GENERATOR))) {
       throw new IllegalArgumentException("Experimental distribution must make only seed4j-extension unavailable");
     }
-    if (!identity.channel().experimental() && !moduleAvailability.unavailableModules().isEmpty()) {
+    if (identity.channel().localIntegration() && !moduleAvailability.unavailableModules().equals(Set.of(EXTENSION_GENERATOR))) {
+      throw new IllegalArgumentException("Local integration must make only seed4j-extension unavailable");
+    }
+    if (identity.channel() == ReleaseChannel.STABLE && !moduleAvailability.unavailableModules().isEmpty()) {
       throw new IllegalArgumentException("Stable distribution must make every Seed4J module available");
     }
   }

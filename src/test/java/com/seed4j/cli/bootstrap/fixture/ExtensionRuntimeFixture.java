@@ -157,6 +157,10 @@ public final class ExtensionRuntimeFixture {
 
   private ExtensionRuntimeFixture() {}
 
+  public static boolean runtimeExtensionsSupported() {
+    return !new com.seed4j.cli.shared.distribution.infrastructure.secondary.ClasspathBuildCapabilities().runtimeExtensions().suspended();
+  }
+
   public static ExtensionRuntimeFixturePaths install(Path userHome) throws IOException {
     return install(userHome, ExtensionRuntimeFixture::createMinimalJar);
   }

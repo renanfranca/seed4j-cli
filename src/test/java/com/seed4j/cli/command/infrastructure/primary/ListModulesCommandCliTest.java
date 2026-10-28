@@ -4,8 +4,8 @@ import static com.seed4j.cli.command.infrastructure.primary.CliFixture.commandLi
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.seed4j.cli.IntegrationTest;
+import com.seed4j.history.application.ProjectHistoryApplicationService;
 import com.seed4j.module.application.Seed4JModulesApplicationService;
-import com.seed4j.project.application.ProjectsApplicationService;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -17,7 +17,7 @@ import org.springframework.boot.test.system.OutputCaptureExtension;
 class ListModulesCommandCliTest {
 
   @Autowired
-  private ProjectsApplicationService projects;
+  private ProjectHistoryApplicationService projects;
 
   @Autowired
   private Seed4JModulesApplicationService modules;

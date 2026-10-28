@@ -12,11 +12,11 @@ import com.seed4j.cli.command.domain.moduleset.ModuleSetSlug;
 import com.seed4j.cli.command.domain.moduleset.ModuleSetStringParameterValue;
 import com.seed4j.cli.command.domain.moduleset.UnsupportedModuleSetHistoryParameter;
 import com.seed4j.cli.shared.error.domain.Assert;
-import com.seed4j.project.application.ProjectsApplicationService;
-import com.seed4j.project.domain.ModuleSlug;
-import com.seed4j.project.domain.ProjectPath;
-import com.seed4j.project.domain.history.ProjectAction;
-import com.seed4j.project.domain.history.ProjectHistory;
+import com.seed4j.history.application.ProjectHistoryApplicationService;
+import com.seed4j.history.domain.ModuleSlug;
+import com.seed4j.history.domain.ProjectAction;
+import com.seed4j.history.domain.ProjectHistory;
+import com.seed4j.history.domain.ProjectPath;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -26,18 +26,18 @@ import java.util.stream.Collectors;
 import org.springframework.stereotype.Component;
 
 @Component
-public class ProjectsModuleSetPlanningHistoryReader implements ModuleSetPlanningHistoryReader {
+public class EngineModuleSetPlanningHistoryReader implements ModuleSetPlanningHistoryReader {
 
-  private final ProjectsApplicationService projects;
+  private final ProjectHistoryApplicationService projects;
 
-  public ProjectsModuleSetPlanningHistoryReader(ProjectsApplicationService projects) {
+  public EngineModuleSetPlanningHistoryReader(ProjectHistoryApplicationService projects) {
     Assert.notNull("projects", projects);
     this.projects = projects;
   }
 
   @Override
   public ModuleSetPlanningHistory history(ModuleSetProjectPath projectPath) {
-    ProjectHistory history = projects.getHistory(new ProjectPath(projectPath.value().toString()));
+    ProjectHistory history = projects.get(new ProjectPath(projectPath.value().toString()));
     return new ModuleSetPlanningHistory(appliedModules(history), historyParameters(history));
   }
 

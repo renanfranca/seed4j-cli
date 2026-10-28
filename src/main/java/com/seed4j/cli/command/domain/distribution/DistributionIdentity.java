@@ -12,6 +12,9 @@ public record DistributionIdentity(
     Assert.notNull("channel", channel);
     Assert.notNull("dependencyCoordinate", dependencyCoordinate);
     Assert.notNull("upstreamCommit", upstreamCommit);
+    if (channel.localIntegration() && (upstreamCommit.isEmpty() || dependencyCoordinate.version().isEmpty())) {
+      throw new IllegalArgumentException("Local integration requires dependency version and upstream commit");
+    }
     if (channel.experimental() && (upstreamCommit.isEmpty() || dependencyCoordinate.version().isEmpty())) {
       throw new IllegalArgumentException("Experimental distribution identity requires dependency version and upstream commit");
     }

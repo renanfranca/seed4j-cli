@@ -54,6 +54,15 @@ or completion. A direct apply request exits `2` before inspecting or changing th
 `seed4j extension` runtime-management commands remain supported. See the
 [complete channel and diagnostic contract](experimental-channel.md).
 
+The `local-integration` build is distinct from published stable and experimental channels.
+It pins Seed4J `3cab6f6592bbe0eb1cc5811a530626e9a141a044`, exposes the engine version and SHA
+in `--version`, and suspends runtime extensions. In this build, explicit `seed4j-extension`
+requests and valid `extension install`, `enable` and `disable` commands return `2` without changes.
+`extension --help` explains the restriction. A configured `seed4j.runtime.mode: extension`
+fails during bootstrap with `1`, before artifact validation; manually select `standard` in
+`~/.config/seed4j-cli/config.yml`. These local exceptions take precedence over the supported
+extension behavior described below. See the [local integration guide](local-engine-integration.md).
+
 ## Basic Commands
 
 ### Version

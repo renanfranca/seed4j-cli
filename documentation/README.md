@@ -19,6 +19,8 @@ in. It owns installation, risk, retention, provenance, and command behavior that
 Use the [contributor and maintainer guide](development.md) to prepare the toolchain, start the CLI locally, build and test
 the npm package, run optional mutation testing, and understand release entry points.
 
+For this branch, use the [local modular engine integration guide](local-engine-integration.md) to build pinned upstream artifacts, run the local JAR and understand extension suspension.
+
 Channel operators should use the
 [experimental operations runbook](experimental-channel.md#build-release-and-branch-isolation) as the canonical source
 for synchronization, publisher cadence, credential boundaries, intervention, rollback, and the procedure for moving to

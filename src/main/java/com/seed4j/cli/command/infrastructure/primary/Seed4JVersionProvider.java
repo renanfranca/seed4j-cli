@@ -53,7 +53,7 @@ class Seed4JVersionProvider implements IVersionProvider {
     RuntimeDisplay runtimeDisplay = runtimeDisplayApplicationService.activeRuntime();
 
     String commonOutput = stableVersionOutput(resolvedCliVersion, resolvedSeed4JVersion, runtimeDisplay);
-    if (metadata.identity().channel().experimental()) {
+    if (metadata.identity().channel().experimental() || metadata.identity().channel().localIntegration()) {
       commonOutput = experimentalVersionOutput(resolvedCliVersion, resolvedSeed4JVersion, runtimeDisplay, metadata);
     }
 
@@ -86,11 +86,12 @@ class Seed4JVersionProvider implements IVersionProvider {
   ) {
     return """
     Seed4J CLI v%s
-    Release channel: experimental
+    Release channel: %s
     Seed4J version: %s
     Seed4J upstream commit: %s
     Runtime mode: %s""".formatted(
       cliVersion,
+      metadata.identity().channel().localIntegration() ? "local-integration" : "experimental",
       seed4JVersion,
       metadata.identity().upstreamCommit().map(Seed4JUpstreamCommit::value).orElse(UNKNOWN_VERSION),
       runtimeDisplay.mode().name().toLowerCase()

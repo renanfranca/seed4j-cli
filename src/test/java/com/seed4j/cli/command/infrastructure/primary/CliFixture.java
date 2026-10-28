@@ -21,14 +21,14 @@ import com.seed4j.cli.command.domain.distribution.ReleaseChannel;
 import com.seed4j.cli.command.domain.distribution.Seed4JDependencyCoordinate;
 import com.seed4j.cli.command.domain.distribution.Seed4JModuleAvailability;
 import com.seed4j.cli.command.domain.distribution.Seed4JUpstreamCommit;
+import com.seed4j.cli.command.infrastructure.secondary.EngineModuleSetPlanningHistoryReader;
 import com.seed4j.cli.command.infrastructure.secondary.JGitModuleSetGitStateReader;
 import com.seed4j.cli.command.infrastructure.secondary.NioModuleSetProjectPathValidator;
-import com.seed4j.cli.command.infrastructure.secondary.ProjectsModuleSetPlanningHistoryReader;
 import com.seed4j.cli.command.infrastructure.secondary.Seed4JModuleSetCatalog;
 import com.seed4j.cli.command.infrastructure.secondary.Seed4JModuleSetModuleApplier;
+import com.seed4j.history.application.ProjectHistoryApplicationService;
 import com.seed4j.module.application.Seed4JModulesApplicationService;
 import com.seed4j.module.infrastructure.secondary.git.GitTestUtil;
-import com.seed4j.project.application.ProjectsApplicationService;
 import java.io.IOException;
 import java.io.PrintWriter;
 import java.nio.file.Files;
@@ -74,13 +74,13 @@ class CliFixture {
     GitTestUtil.execute(project, "config", "user.name", "\"Test\"");
   }
 
-  static CommandLine commandLine(Seed4JModulesApplicationService modules, ProjectsApplicationService projects) {
+  static CommandLine commandLine(Seed4JModulesApplicationService modules, ProjectHistoryApplicationService projects) {
     return commandLine(modules, projects, RuntimeDisplay.standard(), "1", "2");
   }
 
   static CommandLine commandLine(
     Seed4JModulesApplicationService modules,
-    ProjectsApplicationService projects,
+    ProjectHistoryApplicationService projects,
     RuntimeDisplay runtimeDisplay
   ) {
     return commandLine(modules, projects, runtimeDisplay, "1", "2");
@@ -88,7 +88,7 @@ class CliFixture {
 
   static CommandLine commandLine(
     Seed4JModulesApplicationService modules,
-    ProjectsApplicationService projects,
+    ProjectHistoryApplicationService projects,
     RuntimeDisplay runtimeDisplay,
     String projectCliVersion,
     String projectSeed4JVersion
@@ -110,7 +110,7 @@ class CliFixture {
     );
   }
 
-  static CommandLine experimentalCommandLine(Seed4JModulesApplicationService modules, ProjectsApplicationService projects) {
+  static CommandLine experimentalCommandLine(Seed4JModulesApplicationService modules, ProjectHistoryApplicationService projects) {
     return commandLine(
       modules,
       projects,
@@ -145,7 +145,7 @@ class CliFixture {
 
   static CommandLine commandLine(
     Seed4JModulesApplicationService modules,
-    ProjectsApplicationService projects,
+    ProjectHistoryApplicationService projects,
     BashCompletionInstallApplicationService bashCompletionInstallApplicationService
   ) {
     return commandLine(
@@ -161,7 +161,7 @@ class CliFixture {
 
   private static CommandLine commandLine(
     Seed4JModulesApplicationService modules,
-    ProjectsApplicationService projects,
+    ProjectHistoryApplicationService projects,
     RuntimeDisplay runtimeDisplay,
     String projectCliVersion,
     String projectSeed4JVersion,
@@ -174,7 +174,7 @@ class CliFixture {
     ApplyModuleCommand applyModuleCommand = new ApplyModuleCommand(modules, subCommandsFactory, distribution);
     ModuleSetPlanningApplicationService moduleSetPlanningApplicationService = new ModuleSetPlanningApplicationService(
       new Seed4JModuleSetCatalog(modules, () -> distributionMetadata),
-      new ProjectsModuleSetPlanningHistoryReader(projects),
+      new EngineModuleSetPlanningHistoryReader(projects),
       new NioModuleSetProjectPathValidator(),
       new JGitModuleSetGitStateReader(),
       distribution
@@ -199,7 +199,8 @@ class CliFixture {
     ExtensionCommand extensionCommand = new ExtensionCommand(
       extensionInstallCommand,
       new ExtensionEnableCommand(runtimeExtensionModeApplicationService),
-      new ExtensionDisableCommand(runtimeExtensionModeApplicationService)
+      new ExtensionDisableCommand(runtimeExtensionModeApplicationService),
+      distribution
     );
     CompletionCommand completionCommand = new CompletionCommand(new BashCompletionCommand(bashCompletionInstallApplicationService));
     RuntimeDisplayApplicationService runtimeDisplayApplicationService = new RuntimeDisplayApplicationService(() -> runtimeDisplay);

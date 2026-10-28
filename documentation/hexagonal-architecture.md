@@ -160,7 +160,7 @@ catalog hot reload:
   write probe; and
 - `ModuleSetGitStateReader` reports `NO_WORKTREE`, `CLEAN`, or `DIRTY` without exposing JGit types.
 
-Their secondary implementations are `Seed4JModuleSetCatalog`, `ProjectsModuleSetPlanningHistoryReader`,
+Their secondary implementations are `Seed4JModuleSetCatalog`, `EngineModuleSetPlanningHistoryReader`,
 `NioModuleSetProjectPathValidator`, and `JGitModuleSetGitStateReader`. The NIO adapter owns filesystem metadata checks, and
 the JGit adapter owns repository discovery and tracked, staged, and untracked status inspection. Neither adapter leaks
 storage layouts or framework representations into the plan.
@@ -190,7 +190,7 @@ Picocli ApplyModuleSetCommand
   -> ModuleSetPlanningApplicationService
     -> ModuleSetCatalog / ModuleSetPlanningHistoryReader
     -> ModuleSetProjectPathValidator / ModuleSetGitStateReader
-      <- Seed4J / Projects / NIO / JGit secondary adapters
+      <- Seed4J / Engine history / NIO / JGit secondary adapters
   -> ModuleSetExecutionApplicationService
     -> ModuleSetModuleApplier
       <- Seed4JModuleSetModuleApplier -> individual Seed4J apply API
@@ -204,7 +204,8 @@ the mutating capability, and it does so using the same approved plan instance.
 Release channel, Seed4J dependency coordinate, exact upstream commit, and module availability are immutable distribution
 concepts. A secondary classpath reader loads them from the packaged `META-INF/seed4j-cli-distribution.properties`
 resource. It supplies a cached application service for primary consumers and directly implements the domain reader port
-used independently by the secondary Seed4J catalog. Missing or malformed metadata fails safely to stable defaults.
+used independently by the secondary Seed4J catalog. Missing or malformed published metadata falls back to stable defaults.
+Malformed `local-integration` metadata fails explicitly, including a missing full integration SHA.
 
 Primary adapters use the application service to render root help, version identity, module discovery, unavailable-module
 diagnostics, and completion. Domain planning receives typed availability and rejects an unavailable apply-set request
@@ -239,3 +240,22 @@ SkillInstallCommand (primary)
 
 The canonical transactional publication, recovery, cleanup, and symlink guarantees are defined in the
 [installable agent skill specification](../.agent/specifications/installable-agent-skill.md).
+
+### Local modular engine composition
+
+The [local integration build](local-engine-integration.md) replaces the monolith with
+`seed4j-engine` and `seed4j-core-modules`. Spring scans `com.seed4j.cli`, `com.seed4j.module`,
+`com.seed4j.history` and `com.seed4j.shared` with no web application. The engine's
+`ServiceLoader` discovers core module providers; the CLI does not reimplement discovery.
+
+The history adapter calls the external `ProjectHistoryApplicationService.get(...)` API.
+The engine owns persistence, including the compatibility boundary for aggregated and
+individual action JSON records. Application and domain code never inspect those files.
+
+Classpath adapters read build capability into `RuntimeExtensionSupport`. A pre-Spring
+configuration repository decorator rejects a suspended extension selection before the
+extension selection repository can inspect artifacts. Spring command adapters guard
+installation and mode switching before invoking external operations; primary adapters
+render the suspension and usage exit code. Domains carry typed facts and exceptions,
+without classpath access, command syntax or suspension presentation text. Manual
+composition remains confined to bootstrap, with constructor injection inside Spring.

@@ -14,8 +14,8 @@ import com.seed4j.cli.command.domain.distribution.ReleaseChannel;
 import com.seed4j.cli.command.domain.distribution.Seed4JDependencyCoordinate;
 import com.seed4j.cli.command.domain.distribution.Seed4JModuleAvailability;
 import com.seed4j.cli.command.domain.distribution.Seed4JUpstreamCommit;
+import com.seed4j.history.application.ProjectHistoryApplicationService;
 import com.seed4j.module.application.Seed4JModulesApplicationService;
-import com.seed4j.project.application.ProjectsApplicationService;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
@@ -31,7 +31,7 @@ import picocli.CommandLine;
 class Seed4JCommandsFactoryTest {
 
   @Autowired
-  private ProjectsApplicationService projects;
+  private ProjectHistoryApplicationService projects;
 
   @Autowired
   private Seed4JModulesApplicationService modules;

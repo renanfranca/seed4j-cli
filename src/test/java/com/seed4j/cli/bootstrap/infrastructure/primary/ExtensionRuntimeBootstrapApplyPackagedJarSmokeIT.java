@@ -15,6 +15,10 @@ import java.util.stream.Stream;
 import org.junit.jupiter.api.Test;
 
 @UnitTest
+@org.junit.jupiter.api.condition.EnabledIf(
+  value = "com.seed4j.cli.bootstrap.fixture.ExtensionRuntimeFixture#runtimeExtensionsSupported",
+  disabledReason = "Runtime extensions are suspended in the local integration build"
+)
 class ExtensionRuntimeBootstrapApplyPackagedJarSmokeIT {
 
   private static final String EXTENSION_SHARED_RUNTIME_APPLY_MODULE_SLUG = "runtime-extension-apply-shared-context";

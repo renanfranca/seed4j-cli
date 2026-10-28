@@ -4,6 +4,7 @@ import com.seed4j.cli.Seed4JCliApp;
 import com.seed4j.cli.bootstrap.application.PreSpringBootstrapApplicationService;
 import com.seed4j.cli.bootstrap.domain.PreSpringRuntimeEnvironment;
 import com.seed4j.cli.bootstrap.infrastructure.primary.PreSpringBootstrapRunner;
+import com.seed4j.cli.bootstrap.infrastructure.secondary.BuildRuntimeModeConfigurationRepository;
 import com.seed4j.cli.bootstrap.infrastructure.secondary.CurrentProcessPreSpringRuntimeEnvironmentReader;
 import com.seed4j.cli.bootstrap.infrastructure.secondary.FileSystemPackagedExecutableDetector;
 import com.seed4j.cli.bootstrap.infrastructure.secondary.FileSystemRuntimeExtensionSelectionRepository;
@@ -18,6 +19,7 @@ import com.seed4j.cli.bootstrap.infrastructure.secondary.RuntimeExtensionOverlay
 import com.seed4j.cli.bootstrap.infrastructure.secondary.RuntimeExtensionStartClassResolver;
 import com.seed4j.cli.bootstrap.infrastructure.secondary.SpringBootLocalCliRunner;
 import com.seed4j.cli.bootstrap.infrastructure.secondary.SystemErrBootstrapOutput;
+import com.seed4j.cli.shared.distribution.infrastructure.secondary.ClasspathBuildCapabilities;
 import com.seed4j.cli.shared.error.domain.Assert;
 import com.seed4j.cli.shared.generation.domain.ExcludeFromGeneratedCodeCoverage;
 
@@ -39,7 +41,10 @@ public final class PreSpringBootstrapConfiguration {
     Assert.notNull("runtimeEnvironment", runtimeEnvironment);
     PreSpringBootstrapApplicationService preSpringBootstrapApplicationService = new PreSpringBootstrapApplicationService(
       new PreSpringRuntimeEnvironmentSeed4JCliRuntime(runtimeEnvironment),
-      new FileSystemRuntimeModeConfigurationRepository(runtimeEnvironment.cliHome()),
+      new BuildRuntimeModeConfigurationRepository(
+        new FileSystemRuntimeModeConfigurationRepository(runtimeEnvironment.cliHome()),
+        new ClasspathBuildCapabilities().runtimeExtensions()
+      ),
       new FileSystemRuntimeExtensionSelectionRepository(runtimeEnvironment.cliHome(), new JarRuntimeExtensionPackageValidator()),
       new JavaProcessChildLauncher(
         runtimeEnvironment.javaExecutablePath().path(),

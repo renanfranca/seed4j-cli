@@ -1,15 +1,15 @@
 package com.seed4j.cli.command.infrastructure.primary;
 
+import com.seed4j.history.application.ProjectHistoryApplicationService;
+import com.seed4j.history.domain.ModuleParameters;
+import com.seed4j.history.domain.ProjectHistory;
+import com.seed4j.history.domain.ProjectPath;
 import com.seed4j.module.application.Seed4JModulesApplicationService;
 import com.seed4j.module.domain.Seed4JModuleToApply;
 import com.seed4j.module.domain.properties.Seed4JModuleProperties;
 import com.seed4j.module.domain.properties.Seed4JPropertyKey;
 import com.seed4j.module.domain.resource.Seed4JModulePropertyDefinition;
 import com.seed4j.module.domain.resource.Seed4JModuleResource;
-import com.seed4j.project.application.ProjectsApplicationService;
-import com.seed4j.project.domain.ProjectPath;
-import com.seed4j.project.domain.history.ModuleParameters;
-import com.seed4j.project.domain.history.ProjectHistory;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Callable;
@@ -28,9 +28,13 @@ class ApplyModuleSubCommand implements Callable<Integer> {
   private final Seed4JModulesApplicationService modules;
   private final Seed4JModuleResource module;
   private final CommandSpec commandSpec;
-  private final ProjectsApplicationService projects;
+  private final ProjectHistoryApplicationService projects;
 
-  public ApplyModuleSubCommand(Seed4JModulesApplicationService modules, Seed4JModuleResource module, ProjectsApplicationService projects) {
+  public ApplyModuleSubCommand(
+    Seed4JModulesApplicationService modules,
+    Seed4JModuleResource module,
+    ProjectHistoryApplicationService projects
+  ) {
     this.modules = modules;
     this.module = module;
     this.projects = projects;
@@ -48,7 +52,7 @@ class ApplyModuleSubCommand implements Callable<Integer> {
   @Override
   public Integer call() {
     String projectPath = projectPath();
-    ProjectHistory history = projects.getHistory(new ProjectPath(projectPath));
+    ProjectHistory history = projects.get(new ProjectPath(projectPath));
     return executionMode() == ApplyModuleExecutionMode.PLAN ? plan(projectPath, history) : apply(projectPath, history);
   }
 
