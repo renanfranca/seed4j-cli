@@ -5,9 +5,12 @@ import static org.assertj.core.api.Assertions.assertThat;
 import com.seed4j.cli.IntegrationTest;
 import com.seed4j.cli.command.infrastructure.primary.ExtensionRuntimeCommandsFixture.ActiveRuntimeArtifacts;
 import com.seed4j.cli.command.infrastructure.primary.ExtensionRuntimeCommandsFixture.ExtensionRuntimePaths;
+import com.seed4j.cli.shared.distribution.domain.RuntimeExtensionSupport;
+import com.seed4j.cli.shared.distribution.infrastructure.secondary.ClasspathBuildCapabilities;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -15,24 +18,28 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.parallel.Execution;
 import org.junit.jupiter.api.parallel.ExecutionMode;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.boot.test.system.CapturedOutput;
 import org.springframework.boot.test.system.OutputCaptureExtension;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Import;
+import org.springframework.context.annotation.Primary;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 
 @ExtendWith(OutputCaptureExtension.class)
 @Execution(ExecutionMode.SAME_THREAD)
+@Import(ExtensionRuntimeCommandsTest.ControllableBuildCapabilitiesConfiguration.class)
 @IntegrationTest
-@org.junit.jupiter.api.condition.EnabledIf(
-  value = "com.seed4j.cli.bootstrap.fixture.ExtensionRuntimeFixture#runtimeExtensionsSupported",
-  disabledReason = "Runtime extensions are suspended in the local integration build"
-)
 class ExtensionRuntimeCommandsTest {
 
   private static final Path USER_HOME = ExtensionRuntimeCommandsFixture.temporaryUserHome();
 
   @Autowired
   private Seed4JCommandsFactory commandsFactory;
+
+  @Autowired
+  private ControllableClasspathBuildCapabilities buildCapabilities;
 
   private ExtensionRuntimeCommandsFixture fixture;
 
@@ -43,6 +50,7 @@ class ExtensionRuntimeCommandsTest {
 
   @BeforeEach
   void prepareFixture() throws IOException {
+    buildCapabilities.setSupport(RuntimeExtensionSupport.SUPPORTED);
     fixture = new ExtensionRuntimeCommandsFixture(USER_HOME, commandsFactory);
     fixture.cleanUserHomeConfiguration();
   }
@@ -181,6 +189,49 @@ class ExtensionRuntimeCommandsTest {
         .contains("Runtime mode: standard")
         .doesNotContain("Distribution ID")
         .doesNotContain("Distribution version");
+    }
+  }
+
+  @Nested
+  class Suspended {
+
+    @Test
+    void shouldRejectExtensionInstallEnableAndDisableWhenRuntimeExtensionsAreSuspended(CapturedOutput output) throws IOException {
+      buildCapabilities.setSupport(RuntimeExtensionSupport.SUSPENDED);
+      Path extensionJarPath = fixture.createFatJar(USER_HOME.resolve("company-extension.jar"));
+
+      int installExitCode = fixture.commandLine().execute(fixture.installArguments(extensionJarPath));
+      int enableExitCode = fixture.commandLine().execute("extension", "enable");
+      int disableExitCode = fixture.commandLine().execute("extension", "disable");
+
+      assertThat(installExitCode).isEqualTo(2);
+      assertThat(enableExitCode).isEqualTo(2);
+      assertThat(disableExitCode).isEqualTo(2);
+      assertThat(output.getErr()).contains("Runtime extensions are suspended in this local integration. No changes were applied.");
+    }
+  }
+
+  @TestConfiguration
+  static class ControllableBuildCapabilitiesConfiguration {
+
+    @Bean
+    @Primary
+    ControllableClasspathBuildCapabilities controllableClasspathBuildCapabilities() {
+      return new ControllableClasspathBuildCapabilities();
+    }
+  }
+
+  static final class ControllableClasspathBuildCapabilities extends ClasspathBuildCapabilities {
+
+    private final AtomicReference<RuntimeExtensionSupport> support = new AtomicReference<>(RuntimeExtensionSupport.SUPPORTED);
+
+    @Override
+    public RuntimeExtensionSupport runtimeExtensions() {
+      return support.get();
+    }
+
+    void setSupport(RuntimeExtensionSupport nextSupport) {
+      support.set(nextSupport);
     }
   }
 }

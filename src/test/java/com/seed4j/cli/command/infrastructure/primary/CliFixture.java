@@ -143,6 +143,35 @@ class CliFixture {
     );
   }
 
+  static CommandLine localIntegrationCommandLine(Seed4JModulesApplicationService modules, ProjectHistoryApplicationService projects) {
+    return commandLine(
+      modules,
+      projects,
+      RuntimeDisplay.standard(),
+      "0.0.0-SNAPSHOT",
+      "2.2.1-SNAPSHOT",
+      new BashCompletionInstallApplicationService(script ->
+        new com.seed4j.cli.command.domain.BashCompletionInstallationResult(
+          new com.seed4j.cli.command.domain.BashCompletionInstallationPath(
+            Path.of(System.getProperty("user.home")).resolve(".local/share/bash-completion/completions/seed4j")
+          )
+        )
+      ),
+      localIntegrationMetadata()
+    );
+  }
+
+  private static DistributionMetadata localIntegrationMetadata() {
+    return new DistributionMetadata(
+      new DistributionIdentity(
+        ReleaseChannel.LOCAL_INTEGRATION,
+        Seed4JDependencyCoordinate.versioned("com.seed4j", "seed4j-engine", "2.2.1-SNAPSHOT"),
+        Optional.of(new Seed4JUpstreamCommit("3cab6f6592bbe0eb1cc5811a530626e9a141a044"))
+      ),
+      new Seed4JModuleAvailability(Set.of(new DistributionModuleSlug("seed4j-extension")))
+    );
+  }
+
   static CommandLine commandLine(
     Seed4JModulesApplicationService modules,
     ProjectHistoryApplicationService projects,
