@@ -24,7 +24,7 @@ Work on the existing `seed4j-engine-integration` branch. Do not change `/home/re
 - [x] Prove A1 through A9 with tests and recorded observations.
 - [x] Reconcile documentation, formatting, habit findings and final audit.
 - [x] Run the complete `clean verify` gate after explicit user authorization; record exit 1 from JaCoCo.
-- [x] Resolve coverage gaps before claiming the complete gate passes.
+- [ ] Resolve coverage gaps before claiming the complete gate passes.
 
 ## Validation
 
@@ -52,7 +52,9 @@ Final command results:
 - `npm run prettier:check`: exit 0.
 - `habit-hooks`: exit 0, no automated findings. The hook also suggested reviewer delegation; this session did not authorize delegation, so a local structural review used the refactor-design skill and both review references. No additional material refactor was justified.
 
-The user subsequently authorized the full gate. After resolving the in-process coverage gaps for `ClasspathBuildCapabilities`, `BuildRuntimeModeConfigurationRepository`, `UnavailableModuleDiagnosticRenderer`, and `ExtensionRuntimeCommandsTest` (covering both supported and suspended capability states in-process), `./mvnw -B clean verify` exits **0** with 0 Checkstyle violations, all Surefire and Failsafe tests passing, and 100% JaCoCo line and branch coverage (`0 missed lines, 0 missed branches` across all 316 classes).
+The user subsequently authorized the full gate. `./mvnw -B -Dmaven.repo.local=/tmp/seed4j-modular-integration.IHbCWw/m2 clean verify` exited **1** after 1 minute 27 seconds. Checkstyle, 647 Surefire tests (one skipped container), and 13 Failsafe tests (two skipped extension loading scenarios) passed without failures or errors. JaCoCo rejected 26 classes with 119 missed lines and 20 missed branches. The full log is `evidence/cli-clean-verify.log` and copied aggregate coverage is `evidence/full-gate/jacoco/index.html`.
+
+Two material coverage gaps remain: supported extension success paths lost coverage when their scenarios were explicitly suspended, and packaged CLI subprocesses do not receive the JaCoCo agent, so their passing suspension scenarios do not contribute to aggregate coverage. Coverage collection and coverage of retained extension paths need reconciliation before claiming the complete gate passes. No production code, test behavior or coverage threshold was changed in response to the gate execution request. Suspended extension success tests do not count as verified extension support.
 
 ## Risks and recovery
 
