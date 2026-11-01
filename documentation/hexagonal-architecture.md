@@ -244,8 +244,11 @@ The canonical transactional publication, recovery, cleanup, and symlink guarante
 ### Local modular engine composition
 
 The [local integration build](local-engine-integration.md) replaces the monolith with
-`seed4j-engine` and `seed4j-core-modules`. Spring scans `com.seed4j.cli`, `com.seed4j.module`,
-`com.seed4j.history` and `com.seed4j.shared` with no web application. The engine's
+`seed4j-engine` and `seed4j-core-modules`. The CLI uses ordinary `@SpringBootApplication`
+scanning of `com.seed4j.cli` with no web application. The engine registers its own
+Spring Boot auto-configuration; the CLI does not scan or import engine packages.
+The packaged child JVM receives the same `Seed4JCliHome` as bootstrap through
+`-Duser.home`, keeping external configuration consistent across both processes. The engine's
 `ServiceLoader` discovers core module providers; the CLI does not reimplement discovery.
 
 The history adapter calls the external `ProjectHistoryApplicationService.get(...)` API.

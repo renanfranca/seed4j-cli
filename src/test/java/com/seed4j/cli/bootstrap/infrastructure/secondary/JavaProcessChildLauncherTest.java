@@ -45,6 +45,7 @@ class JavaProcessChildLauncherTest {
     assertThat(exitCode).isEqualTo(19);
     assertThat(processExecutor.command()).containsExactly(
       "/opt/jdk/bin/java",
+      "-Duser.home=/tmp/seed4j-cli-home",
       "-Dseed4j.cli.runtime.child=true",
       "-Dseed4j.cli.runtime.mode=standard",
       "-cp",
@@ -80,6 +81,7 @@ class JavaProcessChildLauncherTest {
     assertThat(exitCode).isEqualTo(19);
     assertThat(processExecutor.command()).containsExactly(
       "/opt/jdk/bin/java",
+      "-Duser.home=" + userHome,
       "-Dloader.path=" + overlayClassesPath,
       "-Dlogging.config=classpath:seed4j-cli-logback-spring.xml",
       "-Dlogging.level.com.seed4j.cli.bootstrap.domain=DEBUG",
@@ -123,6 +125,7 @@ class JavaProcessChildLauncherTest {
     assertThat(exitCode).isEqualTo(19);
     assertThat(processExecutor.command()).containsExactly(
       "/opt/jdk/bin/java",
+      "-Duser.home=" + userHome,
       "-Dloader.path=" + overlayClassesPath,
       "-Dlogging.config=classpath:seed4j-cli-logback-spring.xml",
       "-Dlogging.level.root=ERROR",
@@ -167,6 +170,7 @@ class JavaProcessChildLauncherTest {
   private static JavaProcessChildLauncher launcher(Path userHome, RecordingProcessExecutor processExecutor) {
     return new JavaProcessChildLauncher(
       Path.of("/opt/jdk/bin/java"),
+      new Seed4JCliHome(userHome),
       processExecutor,
       new RuntimeExtensionStartClassResolver(),
       new RuntimeExtensionOverlayCache(new Seed4JCliHome(userHome)),

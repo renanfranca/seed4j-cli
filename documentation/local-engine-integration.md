@@ -1,13 +1,14 @@
 # Local integration with the modular Seed4J engine
 
 This branch builds a local CLI against Seed4J commit
-`3cab6f6592bbe0eb1cc5811a530626e9a141a044` from PR #14974. It uses
+`e627bd665ef4cbb789c239daf2c7377b323912a5` from PR #14974. It uses
 `com.seed4j:seed4j-engine:2.2.1-SNAPSHOT` and
 `com.seed4j:seed4j-core-modules:2.2.1-SNAPSHOT`, with the transitive API module.
 It does not follow later PR commits. This is a local build identity, not an npm channel.
 
-The command compatibility reference is CLI revision
-`d46e3b45bc7eaac2e665c02b972087a590bd6c85`, especially
+The command compatibility reference for this revalidation is CLI revision
+`49d943aed8f1712b2d54f3e056d1a7e57aab08cd`, retaining the previous
+`d46e3b45bc7eaac2e665c02b972087a590bd6c85` reference, especially
 [Commands](Commands.md) and the [apply-set specification](../.agent/specifications/apply-set-execution.md).
 Runtime extensions are the approved exception to that reference.
 
@@ -20,7 +21,7 @@ Do not use or modify an existing Seed4J checkout or the shared Maven repository.
 ```bash
 cli_checkout="$PWD"
 integration_dir="$(mktemp -d /tmp/seed4j-modular-integration.XXXXXX)"
-upstream_commit=3cab6f6592bbe0eb1cc5811a530626e9a141a044
+upstream_commit=e627bd665ef4cbb789c239daf2c7377b323912a5
 mkdir -p "$integration_dir/evidence" "$integration_dir/m2"
 git init "$integration_dir/upstream"
 git -C "$integration_dir/upstream" fetch --depth=1 https://github.com/seed4j/seed4j.git "$upstream_commit"
@@ -35,11 +36,12 @@ cd "$cli_checkout"
 ```
 
 This reactor builds the API, engine, reusable test support and core modules without
-building the server or frontend. The CLI uses the engine's `tests` classifier for
-`GitTestUtil`; it does not depend on `seed4j-test`. `-DskipTests` preserves test
-compilation needed to produce the engine fixtures. At the pinned revision,
-upstream Failsafe still runs 208 core Cucumber scenarios with this command.
-Artifact preparation is not a substitute for a complete upstream validation gate.
+building the server or frontend. The CLI test scope uses `com.seed4j:seed4j-test`
+for `GitTestUtil`; this support library is not included in the packaged CLI.
+`-DskipTests` skips upstream Surefire tests, but the pinned reactor still runs
+208 core Cucumber scenarios through Failsafe. Record the actual test results from
+the build log. Artifact preparation is not a substitute for a complete upstream
+validation gate.
 
 ## Build and exercise the CLI
 
@@ -51,7 +53,7 @@ npm ci --ignore-scripts
   > "$integration_dir/evidence/cli-package.log" 2>&1
 ./mvnw -B -Dmaven.repo.local="$integration_dir/m2" \
   -Dseed4j.integration.evidence="$integration_dir/evidence/packaged" \
-  -Dit.test=LocalIntegrationPackagedJarIT,AgentSkillInstallationCliIT,ExtensionRuntimeBootstrapListPackagedJarSmokeIT,ExtensionRuntimeBootstrapApplyPackagedJarSmokeIT \
+  -Dit.test=LocalIntegrationPackagedJarIT,AgentSkillInstallationCliIT \
   failsafe:integration-test failsafe:verify \
   > "$integration_dir/evidence/packaged.log" 2>&1
 ./mvnw -B -Dmaven.repo.local="$integration_dir/m2" dependency:tree \
@@ -96,12 +98,22 @@ java -Duser.home="$integration_dir/home" -jar target/seed4j-cli-0.0.0-SNAPSHOT.j
   apply java-base --project-path "$integration_dir/example"
 ```
 
+`Seed4JCliApp` uses the ordinary `@SpringBootApplication` package scope. The engine
+registers its own auto-configuration, so this CLI does not scan `com.seed4j.module`,
+`com.seed4j.history` or `com.seed4j.shared` explicitly and does not import engine
+configuration manually. The [engine README at the pinned commit](https://github.com/seed4j/seed4j/blob/e627bd665ef4cbb789c239daf2c7377b323912a5/seed4j-engine/README.md)
+documents this auto-configuration contract.
+
+The packaged launcher passes the same `Seed4JCliHome` to the child JVM as
+`-Duser.home`, so bootstrap and Spring use the same user's configuration. This also
+preserves an explicitly isolated home when running the commands above.
+
 Version output includes:
 
 ```text
 Release channel: local-integration
 Seed4J version: 2.2.1-SNAPSHOT
-Seed4J upstream commit: 3cab6f6592bbe0eb1cc5811a530626e9a141a044
+Seed4J upstream commit: e627bd665ef4cbb789c239daf2c7377b323912a5
 Runtime mode: standard
 ```
 
@@ -138,6 +150,20 @@ Bootstrap never rewrites this selection automatically. Tests for supported exten
 installation and packaged loading are explicitly conditioned on build capability;
 their skipped results are not evidence that extensions work with this integration.
 New extensions, Maven resolution, CI adaptation and publication remain future work.
+
+The packaged configuration scenario first checks that `prettier` and `init` appear
+in `list`, `apply --help` and bash completion, then writes the real user config:
+
+```yaml
+seed4j:
+  hidden-resources:
+    slugs: [prettier]
+```
+
+New CLI processes must omit `prettier` from those three catalogs while keeping
+`init`. Snapshots of the isolated home before and after prove that the commands do
+not rewrite configuration. No command-line property substitutes for the file in
+this scenario.
 
 ## History and evidence
 

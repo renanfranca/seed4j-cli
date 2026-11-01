@@ -17,7 +17,7 @@
 Seed4J CLI is a command-line interface tool that helps you apply and manage Seed4J modules. It provides a modular approach to application generation, allowing you to select specific modules and features for your project. Visit [Seed4J](https://github.com/seed4j/seed4j) to learn more about it.
 
 This branch provides the [local modular engine integration](documentation/local-engine-integration.md)
-against pinned upstream commit `3cab6f6592bbe0eb1cc5811a530626e9a141a044`.
+against pinned upstream commit `e627bd665ef4cbb789c239daf2c7377b323912a5`.
 Its `local-integration` JAR supports standard runtime mode and suspends extensions.
 Use the linked guide for isolated builds and validation; npm installation below refers to published channels.
 

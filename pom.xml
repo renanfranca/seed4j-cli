@@ -63,11 +63,9 @@
       <scope>test</scope>
     </dependency>
     <dependency>
-      <groupId>${seed4j.group-id}</groupId>
-      <artifactId>${seed4j.artifact-id}</artifactId>
+      <groupId>com.seed4j</groupId>
+      <artifactId>seed4j-test</artifactId>
       <version>${seed4j.version}</version>
-      <type>test-jar</type>
-      <classifier>tests</classifier>
       <scope>test</scope>
     </dependency>
     <dependency>
@@ -103,7 +101,7 @@
     <seed4j.artifact-id>seed4j-engine</seed4j.artifact-id>
     <seed4j.version>2.2.1-SNAPSHOT</seed4j.version>
     <seed4j.release-channel>local-integration</seed4j.release-channel>
-    <seed4j.integration-commit>3cab6f6592bbe0eb1cc5811a530626e9a141a044</seed4j.integration-commit>
+    <seed4j.integration-commit>e627bd665ef4cbb789c239daf2c7377b323912a5</seed4j.integration-commit>
     <seed4j.runtime-extensions>suspended</seed4j.runtime-extensions>
     <seed4j.unavailable-modules>seed4j-extension</seed4j.unavailable-modules>
     <archunit-junit5.version>1.5.1</archunit-junit5.version>

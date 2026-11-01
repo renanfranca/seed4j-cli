@@ -5,7 +5,7 @@ import com.seed4j.cli.shared.generation.domain.ExcludeFromGeneratedCodeCoverage;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 
 @ExcludeFromGeneratedCodeCoverage(reason = "Not testing logs and System.exit behavior")
-@SpringBootApplication(scanBasePackages = { "com.seed4j.cli", "com.seed4j.module", "com.seed4j.history", "com.seed4j.shared" })
+@SpringBootApplication
 public class Seed4JCliApp {
 
   interface BootstrapExitCodeResolver {

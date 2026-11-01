@@ -31,7 +31,7 @@ import tools.jackson.databind.json.JsonMapper;
 @EnabledIf(value = "localIntegrationBuild", disabledReason = "Exercises the pinned local integration distribution")
 class LocalIntegrationPackagedJarIT {
 
-  private static final String UPSTREAM_COMMIT = "3cab6f6592bbe0eb1cc5811a530626e9a141a044";
+  private static final String UPSTREAM_COMMIT = "e627bd665ef4cbb789c239daf2c7377b323912a5";
   private Path evidence;
   private Path home;
   private Path project;
@@ -127,6 +127,38 @@ class LocalIntegrationPackagedJarIT {
     assertThat(unavailableSet.exitCode()).isEqualTo(2);
     assertThat(unavailableSet.err()).contains("suspended", "local integration").doesNotContain("Central Portal");
     assertThat(project).doesNotExist();
+  }
+
+  @Test
+  void shouldHideConfiguredResourcesFromPackagedDiscoveryHelpAndCompletion() throws Exception {
+    Run visible = cli("list");
+    Run visibleHelp = cli("apply", "--help");
+    Run visibleCompletion = cli("completion", "bash");
+
+    assertThat(visible.exitCode()).isZero();
+    assertThat(visible.out()).contains("prettier", "init");
+    assertThat(visibleHelp.exitCode()).isZero();
+    assertThat(visibleHelp.out()).contains("prettier", "init");
+    assertThat(visibleCompletion.exitCode()).isZero();
+    assertThat(visibleCompletion.out()).contains("prettier", "init");
+
+    Path config = home.resolve(".config/seed4j-cli/config.yml");
+    Files.createDirectories(config.getParent());
+    Files.writeString(config, "seed4j:\n  hidden-resources:\n    slugs:\n      - prettier\n");
+    Map<String, String> before = snapshot(home, "before-hidden-resource-commands");
+
+    Run hiddenList = cli("list");
+    Run hiddenHelp = cli("apply", "--help");
+    Run hiddenCompletion = cli("completion", "bash");
+    Map<String, String> after = snapshot(home, "after-hidden-resource-commands");
+
+    assertThat(hiddenList.exitCode()).isZero();
+    assertThat(hiddenList.out()).contains("init").doesNotContain("prettier");
+    assertThat(hiddenHelp.exitCode()).isZero();
+    assertThat(hiddenHelp.out()).contains("init").doesNotContain("prettier");
+    assertThat(hiddenCompletion.exitCode()).isZero();
+    assertThat(hiddenCompletion.out()).contains("init").doesNotContain("prettier");
+    assertThat(after).isEqualTo(before);
   }
 
   @Test
