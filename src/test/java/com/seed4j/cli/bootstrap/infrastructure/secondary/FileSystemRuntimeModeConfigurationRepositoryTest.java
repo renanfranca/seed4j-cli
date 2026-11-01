@@ -8,6 +8,7 @@ import com.seed4j.cli.bootstrap.domain.InvalidRuntimeConfigurationException;
 import com.seed4j.cli.bootstrap.domain.RuntimeMode;
 import com.seed4j.cli.bootstrap.domain.RuntimeModeChangePlan;
 import com.seed4j.cli.bootstrap.domain.Seed4JCliHome;
+import com.seed4j.cli.shared.distribution.domain.RuntimeExtensionSupport;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -89,5 +90,33 @@ class FileSystemRuntimeModeConfigurationRepositoryTest {
       .hasMessageContaining("Could not update ~/.config/seed4j-cli/config.yml.")
       .hasMessageContaining("Details:")
       .hasCauseInstanceOf(IOException.class);
+  }
+
+  @Test
+  void shouldEnforceBuildRuntimeExtensionSupportWhenReadingAndPreparingModeChange() throws IOException {
+    Path userHome = Files.createTempDirectory("seed4j-cli-build-runtime-mode-configuration-");
+    FileSystemRuntimeModeConfigurationRepository fileSystemRepository = new FileSystemRuntimeModeConfigurationRepository(
+      new Seed4JCliHome(userHome)
+    );
+    BuildRuntimeModeConfigurationRepository supportedRepository = new BuildRuntimeModeConfigurationRepository(
+      fileSystemRepository,
+      RuntimeExtensionSupport.SUPPORTED
+    );
+    BuildRuntimeModeConfigurationRepository suspendedRepository = new BuildRuntimeModeConfigurationRepository(
+      fileSystemRepository,
+      RuntimeExtensionSupport.SUSPENDED
+    );
+
+    assertThat(suspendedRepository.readMode()).isEqualTo(RuntimeMode.STANDARD);
+
+    RuntimeModeChangePlan modeChangePlan = supportedRepository.prepareModeChange(RuntimeMode.EXTENSION);
+    modeChangePlan.apply();
+
+    assertThat(supportedRepository.readMode()).isEqualTo(RuntimeMode.EXTENSION);
+    assertThatThrownBy(suspendedRepository::readMode)
+      .isExactlyInstanceOf(InvalidRuntimeConfigurationException.class)
+      .hasMessage(
+        "Runtime extensions are suspended in this local integration. Select seed4j.runtime.mode: standard in ~/.config/seed4j-cli/config.yml."
+      );
   }
 }

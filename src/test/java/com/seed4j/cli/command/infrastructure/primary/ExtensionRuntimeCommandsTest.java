@@ -11,6 +11,7 @@ import java.nio.file.Path;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.condition.EnabledIf;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.parallel.Execution;
 import org.junit.jupiter.api.parallel.ExecutionMode;
@@ -23,11 +24,11 @@ import org.springframework.test.context.DynamicPropertySource;
 @ExtendWith(OutputCaptureExtension.class)
 @Execution(ExecutionMode.SAME_THREAD)
 @IntegrationTest
-@org.junit.jupiter.api.condition.EnabledIf(
-  value = "com.seed4j.cli.bootstrap.fixture.ExtensionRuntimeFixture#runtimeExtensionsSupported",
-  disabledReason = "Runtime extensions are suspended in the local integration build"
-)
 class ExtensionRuntimeCommandsTest {
+
+  private static final String RUNTIME_EXTENSIONS_SUPPORTED =
+    "com.seed4j.cli.bootstrap.fixture.ExtensionRuntimeFixture#runtimeExtensionsSupported";
+  private static final String SUSPENDED_DISABLED_REASON = "Runtime extensions are suspended in the local integration build";
 
   private static final Path USER_HOME = ExtensionRuntimeCommandsFixture.temporaryUserHome();
 
@@ -48,6 +49,7 @@ class ExtensionRuntimeCommandsTest {
   }
 
   @Nested
+  @EnabledIf(value = RUNTIME_EXTENSIONS_SUPPORTED, disabledReason = SUSPENDED_DISABLED_REASON)
   class Install {
 
     @Test
@@ -103,6 +105,7 @@ class ExtensionRuntimeCommandsTest {
   }
 
   @Nested
+  @EnabledIf(value = RUNTIME_EXTENSIONS_SUPPORTED, disabledReason = SUSPENDED_DISABLED_REASON)
   class Enable {
 
     @Test
@@ -136,6 +139,7 @@ class ExtensionRuntimeCommandsTest {
   }
 
   @Nested
+  @EnabledIf(value = RUNTIME_EXTENSIONS_SUPPORTED, disabledReason = SUSPENDED_DISABLED_REASON)
   class Disable {
 
     @Test
@@ -181,6 +185,24 @@ class ExtensionRuntimeCommandsTest {
         .contains("Runtime mode: standard")
         .doesNotContain("Distribution ID")
         .doesNotContain("Distribution version");
+    }
+  }
+
+  @Nested
+  class Suspended {
+
+    @Test
+    void shouldRejectExtensionInstallEnableAndDisableWhenRuntimeExtensionsAreSuspended(CapturedOutput output) throws IOException {
+      Path extensionJarPath = fixture.createFatJar(USER_HOME.resolve("company-extension.jar"));
+
+      int installExitCode = fixture.commandLine().execute(fixture.installArguments(extensionJarPath));
+      int enableExitCode = fixture.commandLine().execute("extension", "enable");
+      int disableExitCode = fixture.commandLine().execute("extension", "disable");
+
+      assertThat(installExitCode).isEqualTo(2);
+      assertThat(enableExitCode).isEqualTo(2);
+      assertThat(disableExitCode).isEqualTo(2);
+      assertThat(output.getErr()).contains("Runtime extensions are suspended in this local integration. No changes were applied.");
     }
   }
 }

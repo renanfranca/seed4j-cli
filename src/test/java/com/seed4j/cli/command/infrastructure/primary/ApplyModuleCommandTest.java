@@ -2,6 +2,7 @@ package com.seed4j.cli.command.infrastructure.primary;
 
 import static com.seed4j.cli.command.infrastructure.primary.CliFixture.commandLine;
 import static com.seed4j.cli.command.infrastructure.primary.CliFixture.experimentalCommandLine;
+import static com.seed4j.cli.command.infrastructure.primary.CliFixture.localIntegrationCommandLine;
 import static com.seed4j.cli.command.infrastructure.primary.CliFixture.setupProjectTestFolder;
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -122,6 +123,23 @@ class ApplyModuleCommandTest {
       assertThat(exitCode).isEqualTo(2);
       assertThat(errorOutput).hasToString(
         "ERROR: Module 'seed4j-extension' is unavailable in the experimental channel because Central Portal snapshots expire and generated extensions would not remain rebuildable. Install seed4j-cli@latest to generate a stable Seed4J extension. No changes were applied.\n"
+      );
+      assertThat(projectPath).doesNotExist();
+    }
+
+    @Test
+    void shouldRejectDirectUnavailableModuleInLocalIntegrationBeforeCreatingOrInspectingProject(@TempDir Path temporaryDirectory) {
+      Path projectPath = temporaryDirectory.resolve("project-that-must-not-be-created");
+      StringWriter errorOutput = new StringWriter();
+      picocli.CommandLine commandLine = localIntegrationCommandLine(modules, projects);
+      commandLine.setErr(new PrintWriter(errorOutput, true));
+      String[] args = { "apply", "seed4j-extension", "--project-path", projectPath.toString() };
+
+      int exitCode = commandLine.execute(args);
+
+      assertThat(exitCode).isEqualTo(2);
+      assertThat(errorOutput).hasToString(
+        "ERROR: Module 'seed4j-extension' is unavailable because runtime extensions are suspended in this local integration. No changes were applied.\n"
       );
       assertThat(projectPath).doesNotExist();
     }
